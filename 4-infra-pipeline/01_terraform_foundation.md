@@ -50,15 +50,61 @@ terraform {
 
 ### 4.1 ネットワーク (VPC)
 - デフォルトネットワークは使用せず、要件に応じたカスタムモード VPC を作成します。
-- Cloud Run 等のサーバーレス環境から VPC 内のリソース（DBなど）にアクセスする場合は、Serverless VPC Access コネクタ、または新しい Direct VPC Egress を構成します。
+- Cloud Run 等のサーバーレス環境から VPC 内のリソース（DBなど）にアクセスする場合は、**Direct VPC Egress** を構成します（旧来の Serverless VPC Access コネクタよりもシンプルかつ高性能）。
+
+#### SFDC 移行基盤のネットワーク構成図
+
+```mermaid
+graph LR
+    subgraph Internet
+        Client["クライアント"]
+    end
+
+    subgraph "Google Cloud VPC (migration-vpc)"
+        subgraph "app-subnet (10.0.1.0/24)"
+            CR["Cloud Run<br/>モダンアプリ"]
+        end
+        subgraph "cloudrun-egress-subnet (10.0.2.0/24)"
+            DVE["Direct VPC Egress"]
+        end
+        subgraph "Private Service Access"
+            CSQL["Cloud SQL<br/>PostgreSQL 16<br/>(Private IP)"]
+        end
+    end
+
+    Client -->|HTTPS| CR
+    CR --> DVE
+    DVE -->|TCP 5432| CSQL
+
+    style CSQL fill:#4285F4,color:#fff
+    style CR fill:#34A853,color:#fff
+```
+
+**サンプルコード:** [`sample/terraform/network.tf`](sample/terraform/network.tf) に VPC、サブネット、Private Service Access、ファイアウォール、Cloud NAT の構成例を収録しています。
 
 ### 4.2 権限管理 (IAM) および Workload Identity
 - 個人アカウントで Terraform を実行するのではなく、専用の**サービスアカウント**を借用 (Impersonation) して実行することを推奨します。
 - アプリケーションが Google Cloud API を呼び出す際は、サービスアカウントのキー（JSONファイル）を発行せず、**Workload Identity** を使用して権限を付与します。
 
-### 4.3 データベース構成の考慮点
-- 本番環境のデータベース（Cloud SQL / AlloyDB など）の Terraform リソースには `deletion_protection = true` を設定し、誤操作による削除を防止します。
-- パスワード等のクレデンシャルは Terraform コード内に直接記述せず、Google Secret Manager と連携するか、ランダム生成リソース (`random_password`) を使用して後続のSecret Managerに保存します。
+### 4.3 データベース構成 (Cloud SQL for PostgreSQL)
+
+SFDCからの移行先として Cloud SQL for PostgreSQL を構築する際の主要な設計項目です。
+
+| 設計項目 | 推奨設定 | 備考 |
+| :--- | :--- | :--- |
+| **DB バージョン** | `POSTGRES_16` | 最新の安定バージョンを推奨 |
+| **可用性** | 本番: `REGIONAL` / 開発: `ZONAL` | HA 構成で自動フェイルオーバー |
+| **ネットワーク** | Private IP (パブリック IP 無効) | Private Service Access 経由 |
+| **バックアップ** | 自動バックアップ + PITR 有効 | 14 世代保持 / PITR 7 日間 |
+| **メンテナンス** | 日曜 UTC 18:00 (JST 月曜 3:00) | `stable` トラック |
+| **監査ログ** | `pgaudit` 有効 | Cloud Audit Logs 連携 |
+| **クエリ分析** | Query Insights 有効 | スロークエリの検出 |
+| **タイムゾーン** | `Asia/Tokyo` | SFDC のデータとの整合性 |
+| **照合順序** | `ja_JP.utf8` | 日本語ソート順の正しい処理 |
+| **削除保護** | 本番: `true` / 開発: `false` | 誤操作防止 |
+| **クレデンシャル** | `random_password` → Secret Manager | コード内にパスワードを記述しない |
+
+**サンプルコード:** [`sample/terraform/cloudsql.tf`](sample/terraform/cloudsql.tf) に上記設定を反映した Cloud SQL インスタンス、データベース、ユーザー、Secret Manager 連携のフル構成を収録しています。
 
 ## 5. 次のステップ
 基盤の構成コード化方針が定まったら、次はこのコードをどのように自動適用していくかというパイプライン (CI/CD) の設計に進みます。

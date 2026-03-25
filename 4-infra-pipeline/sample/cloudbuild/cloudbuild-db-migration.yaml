@@ -1,0 +1,131 @@
+# =============================================================================
+# DB スキーママイグレーション用 Cloud Build パイプライン
+# =============================================================================
+# Cloud SQL Auth Proxy を経由して PostgreSQL に接続し、
+# golang-migrate を使ってマイグレーションを実行するパイプライン定義です。
+#
+# トリガー:
+#   - migrations/ ディレクトリ配下ファイルへの変更を検知
+#   - Main ブランチへのマージ時に実行
+# =============================================================================
+
+steps:
+  # 1. Cloud SQL Auth Proxy をバックグラウンドで起動
+  #    Sidecar として動作し、後続のステップで DB 接続に使用
+  - name: 'gcr.io/cloud-sql-connectors/cloud-sql-proxy:2'
+    id: 'Start Cloud SQL Auth Proxy'
+    entrypoint: '/cloud-sql-proxy'
+    args:
+      - '${_CLOUDSQL_CONNECTION_NAME}'
+      - '--address=0.0.0.0'
+      - '--port=5432'
+    # ネットワーク共有のためにデフォルトネットワークを使用
+    waitFor: ['-'] # 他のステップと並行起動
+
+  # 2. Auth Proxy の起動を待機
+  - name: 'gcr.io/cloud-builders/curl'
+    id: 'Wait for Proxy'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Waiting for Cloud SQL Auth Proxy to start..."
+        for i in $(seq 1 30); do
+          if nc -z localhost 5432 2>/dev/null; then
+            echo "Cloud SQL Auth Proxy is ready!"
+            exit 0
+          fi
+          echo "Attempt $i/30: Proxy not ready, waiting..."
+          sleep 2
+        done
+        echo "ERROR: Cloud SQL Auth Proxy failed to start"
+        exit 1
+    waitFor: ['Start Cloud SQL Auth Proxy']
+
+  # 3. マイグレーション: Dry Run (plan のみ)
+  #    PR 時はここまでで止め、結果をレビュー用に出力
+  - name: 'migrate/migrate:v4.17.0'
+    id: 'Migration Dry Run'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        echo "=== Migration Status ==="
+        migrate \
+          -source "file://migrations" \
+          -database "postgres://$$DB_USER:$$DB_PASSWORD@localhost:5432/$$DB_NAME?sslmode=disable" \
+          version
+
+        echo ""
+        echo "=== Pending Migrations ==="
+        migrate \
+          -source "file://migrations" \
+          -database "postgres://$$DB_USER:$$DB_PASSWORD@localhost:5432/$$DB_NAME?sslmode=disable" \
+          up -dryrun 2>&1 || true
+    secretEnv: ['DB_USER', 'DB_PASSWORD', 'DB_NAME']
+    waitFor: ['Wait for Proxy']
+
+  # 4. マイグレーション実行 (Main ブランチへのマージ後のみ)
+  - name: 'migrate/migrate:v4.17.0'
+    id: 'Apply Migrations'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        echo "=== Applying Migrations ==="
+        migrate \
+          -source "file://migrations" \
+          -database "postgres://$$DB_USER:$$DB_PASSWORD@localhost:5432/$$DB_NAME?sslmode=disable" \
+          up
+
+        echo ""
+        echo "=== Final Version ==="
+        migrate \
+          -source "file://migrations" \
+          -database "postgres://$$DB_USER:$$DB_PASSWORD@localhost:5432/$$DB_NAME?sslmode=disable" \
+          version
+    secretEnv: ['DB_USER', 'DB_PASSWORD', 'DB_NAME']
+    waitFor: ['Migration Dry Run']
+
+  # 5. マイグレーション結果の検証クエリ
+  - name: 'gcr.io/cloud-sql-connectors/cloud-sql-proxy:2'
+    id: 'Verify Schema'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y postgresql-client
+        echo "=== Verification: Table List ==="
+        PGPASSWORD=$$DB_PASSWORD psql -h localhost -U $$DB_USER -d $$DB_NAME \
+          -c "\dt public.*"
+
+        echo ""
+        echo "=== Verification: Migration History ==="
+        PGPASSWORD=$$DB_PASSWORD psql -h localhost -U $$DB_USER -d $$DB_NAME \
+          -c "SELECT * FROM schema_migrations ORDER BY version DESC LIMIT 10;"
+    secretEnv: ['DB_USER', 'DB_PASSWORD', 'DB_NAME']
+    waitFor: ['Apply Migrations']
+
+# --- Secret Manager からの秘密情報の取得 ---
+availableSecrets:
+  secretManager:
+    - versionName: 'projects/$PROJECT_ID/secrets/cloudsql-app-user/versions/latest'
+      env: 'DB_USER'
+    - versionName: 'projects/$PROJECT_ID/secrets/cloudsql-app-password/versions/latest'
+      env: 'DB_PASSWORD'
+    - versionName: 'projects/$PROJECT_ID/secrets/cloudsql-db-name/versions/latest'
+      env: 'DB_NAME'
+
+# --- 置換変数 (トリガーで設定) ---
+substitutions:
+  _CLOUDSQL_CONNECTION_NAME: 'your-project:asia-northeast1:sfdc-migration-db'
+
+timeout: '600s'
+
+# --- サービスアカウント ---
+# Cloud SQL Client ロールと Secret Manager Accessor ロールを持つ
+# カスタムサービスアカウントを使用 (Least Privilege)
+# serviceAccount: 'projects/$PROJECT_ID/serviceAccounts/cloudbuild-db-migrator@$PROJECT_ID.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

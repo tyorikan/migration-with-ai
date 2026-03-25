@@ -64,3 +64,11 @@ gcloud run deploy my-modern-app \
   --allow-unauthenticated
 ```
 この時、背後で Cloud Build が自動でコンテナビルドを行ってくれる体験（Source-based Deployment）をお客様に体感してもらうことを重視してください。
+
+## GKE Autopilot の検証デプロイ
+エンタープライズ要件により、Kubernetes の採用が必要な場合は **GKE Autopilot** を推奨します。ノード管理が不要で Cloud Run に近い運用体験を提供しつつ、K8s の強力なエコシステムをフル活用できます。
+
+マニフェストファイル (Deployment, Service 等) は AI に自動生成させ、お客様にデプロイの流れを体験していただきます。
+```bash
+kubectl apply -f k8s/
+```
