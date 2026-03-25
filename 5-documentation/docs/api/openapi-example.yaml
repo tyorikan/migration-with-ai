@@ -1,0 +1,93 @@
+openapi: 3.0.3
+info:
+  title: Modernized Application API
+  description: API for the modernized application migrated from SFDC logic.
+  version: 1.0.0
+servers:
+  - url: https://modern-app-service-v1-xxx-an.a.run.app
+    description: Production Cloud Run Server
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the application.
+      responses:
+        '200':
+          description: Application is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: v1.0.0
+  /api/v1/accounts:
+    get:
+      summary: Get accounts
+      description: Retrieve a list of accounts translated from SFDC mock data.
+      parameters:
+        - in: query
+          name: industry
+          schema:
+            type: string
+          description: Filter accounts by industry.
+      responses:
+        '200':
+          description: A list of accounts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+    post:
+      summary: Create an account
+      description: Creates a new account record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountInput'
+      responses:
+        '201':
+          description: Account created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+components:
+  schemas:
+    AccountInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: Global Tech Corp
+        industry:
+          type: string
+          example: Technology
+        annualRevenue:
+          type: number
+          format: float
+          example: 1000000.00
+    Account:
+      allOf:
+        - $ref: '#/components/schemas/AccountInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              example: a012w00000OqABC
+            createdAt:
+              type: string
+              format: date-time
+              example: 2023-10-27T10:00:00Z

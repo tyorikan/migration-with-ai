@@ -1,0 +1,57 @@
+steps:
+  # 1. Run Unit Tests (Go example)
+  - name: 'golang:1.26'
+    id: 'Run Tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cd sample/modern_go_sample
+        go test ./...
+
+  # 2. Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Image'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/workshop-repo/modern-app:$COMMIT_SHA'
+      - '-f'
+      - 'sample/modern_go_sample/Dockerfile'
+      - 'sample/modern_go_sample'
+
+  # 3. Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Image'
+    args:
+      - 'push'
+      - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/workshop-repo/modern-app:$COMMIT_SHA'
+
+  # 4. Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy to Cloud Run'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'modern-app-service'
+      - '--image'
+      - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/workshop-repo/modern-app:$COMMIT_SHA'
+      - '--region'
+      - 'asia-northeast1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated' # Adjust authentication requirements as needed
+      # Use the specific service account created by Terraform
+      - '--service-account'
+      - 'cloudrun-app-sa@$PROJECT_ID.iam.gserviceaccount.com'
+
+# Useful to reference the pushed image
+images:
+  - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/workshop-repo/modern-app:$COMMIT_SHA'
+
+# Optionally define global timeout
+timeout: '1200s'
+
+# Use a specific, less-privileged service account for the build process (Best Practice)
+# serviceAccount: 'projects/$PROJECT_ID/serviceAccounts/cloudbuild-deployer-sa@$PROJECT_ID.iam.gserviceaccount.com'

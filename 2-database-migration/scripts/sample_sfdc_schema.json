@@ -1,0 +1,77 @@
+{
+  "objects": [
+    {
+      "name": "Account",
+      "label": "取引先",
+      "fields": [
+        {
+          "name": "Id",
+          "type": "id",
+          "length": 18,
+          "label": "取引先 ID"
+        },
+        {
+          "name": "Name",
+          "type": "string",
+          "length": 255,
+          "label": "取引先名"
+        },
+        {
+          "name": "Type",
+          "type": "picklist",
+          "label": "種別"
+        },
+        {
+          "name": "AnnualRevenue",
+          "type": "currency",
+          "label": "年間売上"
+        },
+        {
+          "name": "CreatedDate",
+          "type": "datetime",
+          "label": "作成日"
+        }
+      ]
+    },
+    {
+      "name": "Contact",
+      "label": "責任者",
+      "fields": [
+        {
+          "name": "Id",
+          "type": "id",
+          "length": 18,
+          "label": "責任者 ID"
+        },
+        {
+          "name": "AccountId",
+          "type": "reference",
+          "referenceTo": "Account",
+          "label": "取引先 ID"
+        },
+        {
+          "name": "LastName",
+          "type": "string",
+          "length": 80,
+          "label": "姓"
+        },
+        {
+          "name": "FirstName",
+          "type": "string",
+          "length": 40,
+          "label": "名"
+        },
+        {
+          "name": "Email",
+          "type": "email",
+          "label": "メール"
+        },
+        {
+          "name": "DoNotCall",
+          "type": "boolean",
+          "label": "電話拒否"
+        }
+      ]
+    }
+  ]
+}

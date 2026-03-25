@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-modern-go-service
+spec:
+  # GKE の LoadBalancer (L4) をプロビジョニングして外部に公開します
+  type: LoadBalancer
+  selector:
+    app: app-modern-go
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
