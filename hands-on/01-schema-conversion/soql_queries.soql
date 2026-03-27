@@ -1,0 +1,55 @@
+-- ============================================================
+-- SV 業務日報システム SOQL クエリ集
+-- ワークショップ Step 1 で PostgreSQL SQL への変換対象とする
+-- ============================================================
+
+-- Q1: 特定エリアの提出済み日報一覧（リレーション参照）
+SELECT Id, Name, ReportDate__c,
+       Account__r.Name, Account__r.StoreCode__c, Account__r.Region__c,
+       OverallCondition__c, Status__c
+FROM DailyReport__c
+WHERE Account__r.Region__c = '関東'
+  AND Status__c = '提出済'
+ORDER BY ReportDate__c DESC
+LIMIT 50
+
+-- Q2: 今月の店舗別訪問回数と平均評価（集計クエリ）
+SELECT Account__c, Account__r.Name, Account__r.StoreCode__c,
+       COUNT(Id), COUNT(OverallCondition__c)
+FROM DailyReport__c
+WHERE ReportDate__c >= THIS_MONTH
+  AND Status__c IN ('提出済', '承認済')
+GROUP BY Account__c, Account__r.Name, Account__r.StoreCode__c
+HAVING COUNT(Id) > 0
+ORDER BY COUNT(Id) DESC
+
+-- Q3: フォローアップが未完了のカウンセリング記録（子→親リレーション）
+SELECT Id, Name, Category__c, Detail__c,
+       DurationMinutes__c, FollowUpDate__c, FollowUpNote__c,
+       DailyReport__r.Name, DailyReport__r.ReportDate__c,
+       DailyReport__r.Account__r.Name,
+       Contact__r.LastName, Contact__r.Email
+FROM CounselingRecord__c
+WHERE FollowUpRequired__c = true
+  AND FollowUpDate__c <= TODAY
+  AND DailyReport__r.Status__c = '承認済'
+ORDER BY FollowUpDate__c ASC
+
+-- Q4: 過去30日間のカウンセリング分類別集計
+SELECT Category__c, COUNT(Id), SUM(DurationMinutes__c)
+FROM CounselingRecord__c
+WHERE DailyReport__r.ReportDate__c >= LAST_N_DAYS:30
+  AND DailyReport__r.Status__c = '承認済'
+GROUP BY Category__c
+ORDER BY SUM(DurationMinutes__c) DESC
+
+-- Q5: 評価が C 以下の店舗で最新の日報を取得
+SELECT Id, Name, ReportDate__c,
+       Account__r.Name, Account__r.StoreCode__c,
+       OverallCondition__c, Summary__c, NextAction__c
+FROM DailyReport__c
+WHERE OverallCondition__c IN ('C', 'D')
+  AND ReportDate__c >= LAST_N_DAYS:90
+  AND Status__c = '承認済'
+ORDER BY ReportDate__c DESC
+LIMIT 100

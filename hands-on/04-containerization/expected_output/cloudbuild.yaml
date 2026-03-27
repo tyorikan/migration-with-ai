@@ -1,0 +1,71 @@
+# SV業務日報 API — CI/CD パイプライン
+# Cloud Build で テスト → ビルド → Push → デプロイ を自動化
+steps:
+  # Step 1: 単体テスト実行
+  - id: 'unit-test'
+    name: 'golang:1.24'
+    entrypoint: 'go'
+    args: ['test', '-v', '-race', '-coverprofile=coverage.out', './...']
+
+  # Step 2: カバレッジレポート確認
+  - id: 'coverage-check'
+    name: 'golang:1.24'
+    entrypoint: 'go'
+    args: ['tool', 'cover', '-func=coverage.out']
+    waitFor: ['unit-test']
+
+  # Step 3: Docker イメージビルド
+  - id: 'docker-build'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest'
+      - '.'
+    waitFor: ['unit-test']
+
+  # Step 4: Artifact Registry へ Push
+  - id: 'docker-push'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}'
+    waitFor: ['docker-build']
+
+  # Step 5: Cloud Run へデプロイ
+  - id: 'deploy'
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars=DB_HOST=${_DB_HOST},DB_NAME=${_DB_NAME},DB_USER=${_DB_USER}'
+      - '--set-secrets=DB_PASS=${_DB_PASS_SECRET}:latest'
+      - '--add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+    waitFor: ['docker-push']
+
+substitutions:
+  _REGION: asia-northeast1
+  _REPO_NAME: daily-report-api
+  _SERVICE_NAME: daily-report-api
+  _DB_HOST: '/cloudsql/${PROJECT_ID}:${_REGION}:sfdc-migration-db'
+  _DB_NAME: sfdc_app
+  _DB_USER: app_user
+  _DB_PASS_SECRET: db-password
+  _CLOUD_SQL_INSTANCE: '${PROJECT_ID}:${_REGION}:sfdc-migration-db'
+  _SERVICE_ACCOUNT: 'daily-report-api@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}'

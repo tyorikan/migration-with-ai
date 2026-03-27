@@ -1,0 +1,78 @@
+{
+  "objects": [
+    {
+      "name": "Account",
+      "label": "フランチャイズ店舗",
+      "type": "StandardObject",
+      "fields": [
+        { "name": "Id", "label": "レコードID", "type": "Id", "length": 18, "required": true },
+        { "name": "Name", "label": "店舗名", "type": "Text", "length": 255, "required": true },
+        { "name": "StoreCode__c", "label": "店舗コード", "type": "Text", "length": 10, "required": true, "unique": true },
+        { "name": "Region__c", "label": "エリア", "type": "Picklist", "length": 40, "required": true, "picklistValues": ["関東", "関西", "中部", "九州", "東北", "北海道"] },
+        { "name": "OpenDate__c", "label": "開店日", "type": "Date", "required": false },
+        { "name": "IsActive__c", "label": "稼働中", "type": "Checkbox", "required": false, "defaultValue": true },
+        { "name": "Phone", "label": "電話番号", "type": "Phone", "length": 40, "required": false },
+        { "name": "BillingCity", "label": "市区町村", "type": "Text", "length": 40, "required": false },
+        { "name": "BillingState", "label": "都道府県", "type": "Text", "length": 80, "required": false }
+      ]
+    },
+    {
+      "name": "Contact",
+      "label": "店舗担当者",
+      "type": "StandardObject",
+      "fields": [
+        { "name": "Id", "label": "レコードID", "type": "Id", "length": 18, "required": true },
+        { "name": "FirstName", "label": "名", "type": "Text", "length": 40, "required": false },
+        { "name": "LastName", "label": "姓", "type": "Text", "length": 80, "required": true },
+        { "name": "Email", "label": "メール", "type": "Email", "length": 254, "required": false },
+        { "name": "Phone", "label": "電話番号", "type": "Phone", "length": 40, "required": false },
+        { "name": "Title", "label": "役職", "type": "Text", "length": 128, "required": false },
+        { "name": "AccountId", "label": "取引先ID", "type": "Lookup", "referenceTo": "Account", "relationshipType": "Lookup", "required": false }
+      ]
+    },
+    {
+      "name": "DailyReport__c",
+      "label": "業務日報",
+      "type": "CustomObject",
+      "fields": [
+        { "name": "Id", "label": "レコードID", "type": "Id", "length": 18, "required": true },
+        { "name": "Name", "label": "日報番号", "type": "AutoNumber", "format": "DR-{0000}", "required": true },
+        { "name": "ReportDate__c", "label": "日報日付", "type": "Date", "required": true },
+        { "name": "Supervisor__c", "label": "スーパーバイザー", "type": "Lookup", "referenceTo": "User", "relationshipType": "Lookup", "required": true },
+        { "name": "Account__c", "label": "訪問先店舗", "type": "Lookup", "referenceTo": "Account", "relationshipType": "Lookup", "required": true },
+        { "name": "VisitStartTime__c", "label": "訪問開始時刻", "type": "DateTime", "required": true },
+        { "name": "VisitEndTime__c", "label": "訪問終了時刻", "type": "DateTime", "required": true },
+        { "name": "VisitPurpose__c", "label": "訪問目的", "type": "Picklist", "length": 40, "required": true, "picklistValues": ["定期巡回", "緊急対応", "新規オープン支援", "研修", "監査"] },
+        { "name": "OverallCondition__c", "label": "店舗総合評価", "type": "Picklist", "length": 10, "required": true, "picklistValues": ["A", "B", "C", "D"] },
+        { "name": "Summary__c", "label": "所見・サマリー", "type": "LongTextArea", "length": 32000, "required": false },
+        { "name": "NextAction__c", "label": "ネクストアクション", "type": "LongTextArea", "length": 5000, "required": false },
+        { "name": "Status__c", "label": "ステータス", "type": "Picklist", "length": 20, "required": true, "picklistValues": ["下書き", "提出済", "承認済", "差戻し"], "defaultValue": "下書き" },
+        { "name": "ApprovedBy__c", "label": "承認者", "type": "Lookup", "referenceTo": "User", "relationshipType": "Lookup", "required": false },
+        { "name": "ApprovedDate__c", "label": "承認日時", "type": "DateTime", "required": false }
+      ]
+    },
+    {
+      "name": "CounselingRecord__c",
+      "label": "カウンセリング記録",
+      "type": "CustomObject",
+      "fields": [
+        { "name": "Id", "label": "レコードID", "type": "Id", "length": 18, "required": true },
+        { "name": "Name", "label": "記録番号", "type": "AutoNumber", "format": "CR-{0000}", "required": true },
+        { "name": "DailyReport__c", "label": "日報", "type": "MasterDetail", "referenceTo": "DailyReport__c", "relationshipType": "MasterDetail", "required": true },
+        { "name": "Contact__c", "label": "対象担当者", "type": "Lookup", "referenceTo": "Contact", "relationshipType": "Lookup", "required": true },
+        { "name": "Category__c", "label": "カウンセリング分類", "type": "Picklist", "length": 40, "required": true, "picklistValues": ["業務改善", "人材育成", "クレーム対応", "売上分析", "衛生管理", "その他"] },
+        { "name": "Detail__c", "label": "内容詳細", "type": "LongTextArea", "length": 32000, "required": true },
+        { "name": "DurationMinutes__c", "label": "所要時間（分）", "type": "Number", "precision": 4, "scale": 0, "required": true },
+        { "name": "FollowUpRequired__c", "label": "フォローアップ要否", "type": "Checkbox", "required": false, "defaultValue": false },
+        { "name": "FollowUpDate__c", "label": "フォローアップ予定日", "type": "Date", "required": false },
+        { "name": "FollowUpNote__c", "label": "フォローアップメモ", "type": "LongTextArea", "length": 5000, "required": false }
+      ]
+    }
+  ],
+  "relationships": [
+    { "from": "Contact.AccountId", "to": "Account.Id", "type": "Lookup", "description": "店舗担当者 → フランチャイズ店舗" },
+    { "from": "DailyReport__c.Account__c", "to": "Account.Id", "type": "Lookup", "description": "業務日報 → 訪問先店舗" },
+    { "from": "CounselingRecord__c.DailyReport__c", "to": "DailyReport__c.Id", "type": "MasterDetail", "description": "カウンセリング記録 → 業務日報（親子）" },
+    { "from": "CounselingRecord__c.Contact__c", "to": "Contact.Id", "type": "Lookup", "description": "カウンセリング記録 → 対象担当者" }
+  ]
+}
