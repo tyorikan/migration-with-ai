@@ -27,7 +27,7 @@
 
 ```
 hands-on/
-├── HANDSON.md                            ← 📖 本ドキュメント
+├── README.md                             ← 📖 本ドキュメント
 ├── 01-schema-conversion/
 │   ├── sfdc_daily_report_schema.json        # SFDC メタデータ（入力）
 │   ├── soql_queries.soql                    # SOQL クエリ集（入力）
