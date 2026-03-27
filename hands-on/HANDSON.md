@@ -9,40 +9,71 @@
 ## 📋 タイムテーブル
 
 | 時間 | Step | 内容 | AI の役割 |
-|------|------|------|-----------|
+|------|------|------|-----------| 
 | 10:00 – 10:30 | **Step 0** | キックオフ：AI ネイティブ移行の合意形成 | — |
 | 10:30 – 12:00 | **Step 1** | DB スキーマ変換（SFDC → PostgreSQL DDL） | 🤖 DDL 自動生成、SOQL→SQL 変換 |
 | 12:00 – 13:00 | | 🍱 昼休み | |
 | 13:00 – 14:30 | **Step 2** | コードリファクタリング（Apex → モダン API） | 🤖 クリーンアーキテクチャへの翻訳 |
 | 14:30 – 15:30 | **Step 3** | テスト自動生成（品質保証のモダナイズ） | 🤖 テストコード生成 |
 | 15:30 – 16:30 | **Step 4** | コンテナ化・CI パイプライン構築 | 🤖 Dockerfile / CI YAML 生成 |
-| 16:30 – 17:00 | **Step 5** | Docs as Code & クロージング | 🤖 ADR / API 仕様書の自動生成 |
+| 16:30 – 17:00 | **Step 5** | Docs as Code & クロージング | 🤖 ADR / アーキテクチャ図の自動生成 |
 
 ---
 
 ## 📁 ディレクトリ構成
 
+> [!IMPORTANT]
+> **出力ルール**: 各 Step で AI が生成した成果物は、対応する Step ディレクトリの **`output/`** サブディレクトリに出力してください。これによりレビューや Git 管理が容易になります。
+
 ```
 hands-on/
-├── HANDSON.md                      ← 📖 本ドキュメント
+├── HANDSON.md                            ← 📖 本ドキュメント
 ├── 01-schema-conversion/
-│   ├── sfdc_daily_report_schema.json   # SFDC メタデータ（入力）
-│   ├── soql_queries.soql               # SOQL クエリ集（入力）
+│   ├── sfdc_daily_report_schema.json        # SFDC メタデータ（入力）
+│   ├── soql_queries.soql                    # SOQL クエリ集（入力）
+│   ├── output/                              # ← 🤖 AI 生成物の出力先
+│   │   ├── .gitkeep
+│   │   ├── generated_ddl.sql                # 生成された DDL
+│   │   └── converted_queries.sql            # 変換された SQL
 │   └── expected_output/
-│       ├── ddl.sql                     # 期待される DDL 出力
-│       └── converted_queries.sql       # 期待される SQL 変換結果
+│       ├── ddl.sql                          # 期待出力（参考）
+│       └── converted_queries.sql
 ├── 02-code-modernization/
-│   └── legacy_apex/
-│       ├── DailyReportController.cls   # Apex REST コントローラー
-│       ├── DailyReportTrigger.trigger  # Apex トリガー
-│       └── MonthlyReportBatch.cls      # Batch Apex
-├── 03-test-generation/                 # Step 3 で AI に生成させる
+│   ├── legacy_apex/
+│   │   ├── DailyReportController.cls        # Apex REST コントローラー
+│   │   ├── DailyReportTrigger.trigger       # Apex トリガー
+│   │   └── MonthlyReportBatch.cls           # Batch Apex
+│   └── output/                              # ← 🤖 AI 生成物の出力先
+│       ├── .gitkeep
+│       └── generated_go/                    # Go プロジェクト一式
+│           ├── go.mod
+│           ├── go.sum
+│           ├── cmd/server/main.go
+│           └── internal/...
+├── 03-test-generation/                      # Step 3 で AI が生成
+│   ├── .gitkeep
+│   └── output/                              # ← 🤖 AI 生成物の出力先
+│       ├── .gitkeep
+│       ├── *_test.go                        # テストコード
+│       └── data_validation.sql              # データ整合性検証 SQL
 ├── 04-containerization/
+│   ├── output/                              # ← 🤖 AI 生成物の出力先
+│   │   ├── .gitkeep
+│   │   ├── Dockerfile
+│   │   └── cloudbuild.yaml
 │   └── expected_output/
-│       ├── Dockerfile                  # マルチステージビルド
-│       └── cloudbuild.yaml             # CI/CD パイプライン
-└── 05-documentation/                   # Step 5 で AI に生成させる
+│       ├── Dockerfile                       # 期待出力（参考）
+│       └── cloudbuild.yaml
+└── 05-documentation/                        # Step 5 で AI が生成
+    ├── .gitkeep
+    └── output/                              # ← 🤖 AI 生成物の出力先
+        ├── .gitkeep
+        ├── architecture_decision_records.md # ADR
+        └── architecture_diagram.md          # アーキテクチャ図
 ```
+
+> [!TIP]
+> `expected_output/` は AI が理想的に生成した場合の参考出力です。`output/` にある実際の AI 出力と比較してレビューできます。
 
 ---
 
@@ -117,17 +148,19 @@ graph LR
         A2["コード翻訳"]
         A3["テスト生成"]
         A4["ドキュメント生成"]
+        A5["セルフレビュー"]
     end
     subgraph "👤 人間の担当"
         H1["ビジネス要件の最終判断"]
         H2["アーキテクチャ選定"]
-        H3["AI 出力のレビュー"]
+        H3["AI レビュー結果の確認"]
         H4["プロンプトの改善"]
     end
-    A1 -->|"レビュー"| H3
-    A2 -->|"レビュー"| H3
-    A3 -->|"レビュー"| H3
-    A4 -->|"レビュー"| H3
+    A1 -->|"セルフレビュー"| A5
+    A2 -->|"セルフレビュー"| A5
+    A3 -->|"セルフレビュー"| A5
+    A4 -->|"セルフレビュー"| A5
+    A5 -->|"レビュー結果を提示"| H3
     H1 -->|"制約を付与"| A1
     H2 -->|"制約を付与"| A2
     H4 -->|"改善"| A1
@@ -160,6 +193,9 @@ cat hands-on/01-schema-conversion/sfdc_daily_report_schema.json | python3 -m jso
 
 以下のプロンプトを **Gemini**（または Antigravity / Claude）にコピー＆ペーストし、DDL を生成させます。
 
+> [!IMPORTANT]
+> **出力先**: `hands-on/01-schema-conversion/output/generated_ddl.sql`
+
 #### プロンプト
 
 ````markdown
@@ -174,7 +210,7 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 2. **カラム名**: フィールド名を snake_case に変換。`__c` サフィックスは除去。
 3. **データ型マッピング**:
    | SFDC 型 | PostgreSQL 型 |
-   |---------|----|
+   |---------|-----|
    | Id | VARCHAR(18) PRIMARY KEY |
    | Text | VARCHAR(length) |
    | LongTextArea | TEXT |
@@ -197,6 +233,7 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 # 出力形式
 - 純粋な SQL のみ（説明は SQL コメントとして記述）
 - テーブル間の依存関係を考慮した作成順序で出力
+- **出力先ファイル**: `hands-on/01-schema-conversion/output/generated_ddl.sql`
 
 # 入力データ（SFDC メタデータ）
 ```json
@@ -204,20 +241,34 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 ```
 ````
 
-#### 🔍 チェックポイント（人間のレビュー）
+#### 🤖 AI セルフレビュー
 
-生成された DDL を以下の観点で確認しましょう：
+> [!TIP]
+> シニアエンジニアのレビューが難しい場合は、**AI 自身にレビューさせましょう**。生成された DDL を以下のプロンプトで検証します。
 
-| # | チェック項目 | 確認内容 |
-|---|-------------|---------|
-| 1 | テーブル名 | snake_case で `__c` が除去されているか |
-| 2 | データ型 | マッピング表のとおりか（特に `TIMESTAMPTZ`, `TEXT`） |
-| 3 | PRIMARY KEY | 全テーブルに `VARCHAR(18) PRIMARY KEY` があるか |
-| 4 | FOREIGN KEY | Lookup は `ON DELETE SET NULL`、MasterDetail は `ON DELETE CASCADE` か |
-| 5 | NOT NULL | SFDC の必須フィールドに NOT NULL が付いているか |
-| 6 | CHECK 制約 | Picklist の値が制約に含まれているか |
-| 7 | インデックス | 外部キー列にインデックスが作られているか |
-| 8 | COMMENT ON | 日本語ラベルが付与されているか |
+```markdown
+# 指示
+あなたはデータベース設計のシニアレビュアーです。
+以下の PostgreSQL DDL を厳格にレビューし、問題点を指摘してください。
+
+# レビュー観点（全項目を必ずチェックすること）
+1. **テーブル名・カラム名**: snake_case で `__c` が除去されているか
+2. **データ型**: マッピング表のとおりか（特に `TIMESTAMPTZ`, `TEXT`）
+3. **PRIMARY KEY**: 全テーブルに `VARCHAR(18) PRIMARY KEY` があるか
+4. **FOREIGN KEY**: Lookup は `ON DELETE SET NULL`、MasterDetail は `ON DELETE CASCADE` か
+5. **NOT NULL**: SFDC の必須フィールドに NOT NULL が付いているか
+6. **CHECK 制約**: Picklist の値が制約に含まれているか
+7. **インデックス**: 外部キー列にインデックスが作られているか
+8. **COMMENT ON**: 日本語ラベルが付与されているか
+9. **セキュリティ**: SQL インジェクションの懸念がないか
+10. **パフォーマンス**: N+1 問題を引き起こす設計になっていないか
+
+# 出力形式
+各チェック項目について ✅ OK / ❌ NG を判定し、NG の場合は修正案を具体的に示せ。
+
+# 入力（レビュー対象の DDL）
+（ここに生成された DDL を貼り付け）
+```
 
 📂 **期待出力:** [`01-schema-conversion/expected_output/ddl.sql`](./01-schema-conversion/expected_output/ddl.sql)
 
@@ -226,6 +277,9 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 次に、SOQL クエリを PostgreSQL の標準 SQL に変換します。
 
 📂 **入力ファイル:** [`01-schema-conversion/soql_queries.soql`](./01-schema-conversion/soql_queries.soql)
+
+> [!IMPORTANT]
+> **出力先**: `hands-on/01-schema-conversion/output/converted_queries.sql`
 
 #### プロンプト
 
@@ -244,6 +298,9 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 3. **集計関数**: COUNT(Id) → COUNT(dr.id)
 4. **テーブル名・カラム名**: 先ほど生成した DDL の命名規則に準拠
 5. 各クエリに対して、**パフォーマンスに有効なインデックスも提案**してください
+
+# 出力先ファイル
+`hands-on/01-schema-conversion/output/converted_queries.sql`
 
 # 入力（SOQL クエリ）
 （ここに soql_queries.soql の内容を貼り付け）
@@ -274,23 +331,26 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 
 ### 2-1. レガシー Apex コードの確認（10分）
 
-変換対象の Apex コードを確認します。3 つのパターンがあります。
+変換対象の Apex コードを確認します。**3 つのパターン全て**を変換します。
 
 | # | ファイル | Apex パターン | 変換先 |
 |---|---------|--------------|--------|
 | 1 | `DailyReportController.cls` | REST API（CRUD） | ステートレス REST API |
-| 2 | `DailyReportTrigger.trigger` | レコード更新トリガー | イベント駆動ワーカー |
-| 3 | `MonthlyReportBatch.cls` | バッチ集計処理 | CLI / Cloud Run Jobs |
+| 2 | `DailyReportTrigger.trigger` | レコード更新トリガー | Pub/Sub + イベント駆動ワーカー |
+| 3 | `MonthlyReportBatch.cls` | バッチ集計処理 | Cloud Run Jobs + Cloud Scheduler |
 
 📂 **入力ファイル:** [`02-code-modernization/legacy_apex/`](./02-code-modernization/legacy_apex/)
 
-### 2-2. 🤖 Apex → モダン REST API への変換（50分）
+### 2-2. 🤖 Apex → モダン REST API への変換（40分）
 
 最も重要な変換パターンです。単なる言語翻訳ではなく、**クリーンアーキテクチャへの構造的変換**を AI に指示します。
 
+> [!IMPORTANT]
+> **出力先**: `hands-on/02-code-modernization/output/generated_go/` 配下に Go プロジェクトとして出力
+
 #### プロンプト（DailyReportController.cls の変換）
 
-```markdown
+````markdown
 # 指示
 以下の Salesforce Apex REST コントローラーを、
 **Go 言語のクリーンアーキテクチャ構成の REST API** に変換してください。
@@ -312,8 +372,25 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 6. **トランザクション管理**: 日報＋カウンセリング記録の作成は `sql.Tx` でアトミックに
 7. **入力検証**: リクエストボディのバリデーション
 
+# プロジェクト初期化要件（厳守）
+> [!CAUTION]
+> 以下を必ず含めること。これが欠けるとビルドが通りません。
+
+8. **`go.mod` の生成**: `module daily-report-api` で初期化し、Go 1.24 を指定
+9. **依存パッケージの明示**: `go.mod` に以下を含めること
+   - `github.com/lib/pq` (PostgreSQL ドライバ)
+   - `github.com/google/uuid` (UUID 生成)
+10. **`go.sum` の生成**: `go mod tidy` で生成される内容を含めること
+11. **ビルド確認コマンド**: 出力の末尾に以下のコマンドを記載
+    ```bash
+    cd hands-on/02-code-modernization/output/generated_go
+    go mod tidy
+    go build ./...
+    ```
+
 # 出力形式
-以下のファイルに分割して出力:
+以下のファイルに分割して `hands-on/02-code-modernization/output/generated_go/` に出力:
+- `go.mod` — モジュール定義（**必須**）
 - `cmd/server/main.go` — エントリーポイント
 - `internal/handler/daily_report.go` — HTTP ハンドラー
 - `internal/usecase/daily_report.go` — ビジネスロジック
@@ -321,25 +398,20 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 - `internal/model/daily_report.go` — 構造体定義
 
 # 入力（Apex ソースコード）
+```apex
 （ここに DailyReportController.cls の内容を貼り付け）
-
-# 参考（PostgreSQL テーブル定義）
-（ここに先ほど生成した DDL を貼り付け）
 ```
 
-#### 🔍 レビューチェックリスト
+# 参考（PostgreSQL テーブル定義）
+```sql
+（ここに先ほど生成した DDL を貼り付け）
+```
+````
 
-| # | チェック項目 | なぜ重要か |
-|---|-------------|----------|
-| 1 | レイヤー分離されているか | テスタビリティと保守性の土台 |
-| 2 | インターフェースで DI されているか | モックに差し替えてテスト可能に |
-| 3 | `sql.Tx` でトランザクション管理されているか | Apex の暗黙トランザクションを明示的に |
-| 4 | `os.Getenv` で設定注入されているか | 12-Factor App 準拠、コンテナ対応 |
-| 5 | `slog` で構造化ログされているか | Cloud Logging での検索性 |
-| 6 | エラーが JSON で返されるか | API クライアントの UX |
-| 7 | SFDC 固有コード（`UserInfo.getUserId()` 等）が除去されているか | SFDC 依存の排除 |
+### 2-3. 🤖 Apex Trigger → イベント駆動パターンへの変換（15分）
 
-### 2-3. 🤖 Apex Trigger → イベント駆動パターンへの変換（20分）
+> [!IMPORTANT]
+> **出力先**: `hands-on/02-code-modernization/output/generated_go/internal/event/` および `internal/worker/`
 
 #### プロンプト（DailyReportTrigger の変換）
 
@@ -358,8 +430,83 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 5. **メッセージ形式**: JSON（イベントの型定義を含む）
 6. 将来 Pub/Sub に繋ぐことを念頭に、メッセージ受信部分はインターフェースで抽象化する
 
+# 出力先
+`hands-on/02-code-modernization/output/generated_go/internal/event/` と
+`hands-on/02-code-modernization/output/generated_go/internal/worker/` に出力
+
 # 入力（Apex トリガーのソースコード）
 （ここに DailyReportTrigger.trigger の内容を貼り付け）
+```
+
+### 2-4. 🤖 Batch Apex → Cloud Run Jobs への変換（15分）
+
+> [!IMPORTANT]
+> **出力先**: `hands-on/02-code-modernization/output/generated_go/cmd/batch/`
+
+#### プロンプト（MonthlyReportBatch.cls の変換）
+
+```markdown
+# 指示
+以下の Salesforce Batch Apex（月次集計バッチ）を、
+**Cloud Run Jobs で実行する Go のバッチプログラム**に変換してください。
+
+# 設計要件
+1. **エントリーポイント**: `cmd/batch/main.go` として独立した main パッケージ
+2. **Batchable パターンの変換**:
+   - `start()` (QueryLocator) → PostgreSQL カーソルベースのページネーション
+   - `execute()` (バッチ処理) → goroutine による並列処理（`sync.WaitGroup`）
+   - `finish()` (後処理) → 集計結果の DB 書き込み + ログ出力
+3. **DB 接続**: `internal/repository/` の既存コードを再利用
+4. **環境変数**:
+   - `BATCH_SIZE`: 1バッチあたりの処理件数（デフォルト: 200）
+   - `TARGET_MONTH`: 集計対象月（`YYYY-MM` 形式、デフォルト: 前月）
+5. **エラーハンドリング**: 部分失敗時は失敗行をログに記録し、残りを継続処理
+6. **Cloud Scheduler との連携**: 月次実行 `0 2 1 * *`（毎月1日 AM2:00）を想定
+
+# 出力先
+`hands-on/02-code-modernization/output/generated_go/cmd/batch/main.go`
+
+# 入力（Apex Batch ソースコード）
+```apex
+（ここに MonthlyReportBatch.cls の内容を貼り付け）
+```
+```
+
+### 2-5. 🤖 AI セルフレビュー（生成コード検証）
+
+生成されたコードを AI 自身にレビューさせます。
+
+```markdown
+# 指示
+あなたは Go 言語のシニアアーキテクトです。
+以下の生成コードを厳格にレビューし、問題点と改善案を指摘してください。
+
+# レビュー観点（全項目を必ずチェック）
+1. ✅ レイヤー分離: handler/usecase/repository が正しく分離されているか
+2. ✅ DI: インターフェースで依存注入されているか（具象に依存していないか）
+3. ✅ トランザクション: `sql.Tx` で日報+カウンセリング記録がアトミック管理されているか
+4. ✅ 環境変数: `os.Getenv()` で DB 接続情報が注入されているか
+5. ✅ 構造化ログ: `slog` が使用されているか
+6. ✅ エラーハンドリング: JSON 構造化エラーレスポンスになっているか
+7. ✅ SFDC 依存排除: `UserInfo.getUserId()` 等の SFDC 固有コードがないか
+8. ✅ go.mod: モジュール名・Go バージョン・依存パッケージが正しいか
+9. ✅ ビルド可能: `go build ./...` が通る構成になっているか
+10. ✅ Batch 変換: MonthlyReportBatch のロジックが cmd/batch/ に変換されているか
+
+# 自動検証コマンド（可能であれば実行）
+```bash
+cd hands-on/02-code-modernization/output/generated_go
+go mod tidy
+go vet ./...
+go build ./...
+```
+
+# 出力形式
+各チェック項目について ✅ PASS / ❌ FAIL を判定。
+FAIL の場合は修正コードを具体的に提示すること。
+
+# 入力（レビュー対象のコード）
+（ここに生成された Go コードを全ファイル貼り付け）
 ```
 
 ### 💬 議論ポイント
@@ -375,6 +522,9 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 ### 3-1. 🤖 単体テストの自動生成（30分）
 
 Step 2 で生成したコードを AI に渡し、テストコードを生成させます。
+
+> [!IMPORTANT]
+> **出力先**: `hands-on/03-test-generation/output/` 配下に各テストファイルを出力
 
 #### プロンプト
 
@@ -394,24 +544,47 @@ Step 2 で生成したコードを AI に渡し、テストコードを生成さ
    - 📏 境界値テスト（DurationMinutes が 0 や負の場合）
 4. **handler テスト**: `httptest.NewRecorder` を使い、HTTP ステータスコードとレスポンスボディを検証
 5. **テスト命名**: `Test<関数名>_<シナリオ>` 形式
+6. **テストが通ること**: `go test -v -race ./...` でパスすること
+
+# 出力先
+以下のファイルを `hands-on/03-test-generation/output/` に出力:
+- `model_test.go` — モデルバリデーションテスト
+- `usecase_test.go` — ユースケーステスト（mockRepo 使用）
+- `handler_test.go` — HTTP ハンドラーテスト
 
 # 入力（テスト対象のコード）
-（ここに Step 2 で生成した handler / usecase のコードを貼り付け）
+（ここに Step 2 で生成した handler / usecase / model のコードを貼り付け）
 ```
 
-#### 🔍 生成テストのレビューポイント
+#### 🤖 AI セルフレビュー（テスト品質チェック）
 
-| # | チェック項目 |
-|---|-------------|
-| 1 | テーブル駆動テストの構造が正しいか（`tests` スライス + `t.Run`） |
-| 2 | モックが正しく DI されているか |
-| 3 | 正常系・異常系の両方がカバーされているか |
-| 4 | HTTP ステータスコードが適切に検証されているか |
-| 5 | ボディの JSON 構造が期待通りに検証されているか |
+```markdown
+# 指示
+以下の Go テストコードをレビューし、品質を評価してください。
+
+# 検証項目
+1. テーブル駆動テストの構造が正しいか（`tests` スライス + `t.Run`）
+2. モックが正しく DI されているか
+3. 正常系・異常系の両方がカバーされているか
+4. HTTP ステータスコードが適切に検証されているか
+5. テストが冪等で他テストに依存していないか
+
+# 自動検証コマンド
+```bash
+go test -v -race -count=1 ./...
+go test -cover ./...
+```
+
+# 入力（テストコード）
+（ここにテストコードを貼り付け）
+```
 
 ### 3-2. 🤖 データ整合性検証 SQL の生成（15分）
 
 将来のデータ移行に備え、SFDC と PostgreSQL 間のデータ整合性を検証する SQL を生成させます。
+
+> [!IMPORTANT]
+> **出力先**: `hands-on/03-test-generation/output/data_validation.sql`
 
 #### プロンプト
 
@@ -428,6 +601,9 @@ accounts, contacts, daily_reports, counseling_records
 3. **NULL チェック**: NOT NULL 制約のカラムに NULL が存在しないか
 4. **Picklist 値チェック**: CHECK 制約外の値が存在しないか
 5. **カウンセリング記録の整合性**: 日報に紐づくカウンセリング記録件数の検証
+
+# 出力先
+`hands-on/03-test-generation/output/data_validation.sql`
 ```
 
 ### 💬 議論ポイント
@@ -440,6 +616,9 @@ accounts, contacts, daily_reports, counseling_records
 ## Step 4: AI によるコンテナ化・CI パイプライン構築（15:30 – 16:30）
 
 ### 4-1. 🤖 セキュアな Dockerfile の生成（20分）
+
+> [!IMPORTANT]
+> **出力先**: `hands-on/04-containerization/output/Dockerfile`
 
 #### プロンプト
 
@@ -458,20 +637,35 @@ accounts, contacts, daily_reports, counseling_records
 - Go 1.24
 - エントリーポイント: cmd/server/main.go
 - go.mod / go.sum あり
+
+# 出力先
+`hands-on/04-containerization/output/Dockerfile`
 ```
 
 📂 **期待出力:** [`04-containerization/expected_output/Dockerfile`](./04-containerization/expected_output/Dockerfile)
 
-#### 🔍 Dockerfile レビューポイント
+#### 🤖 AI セルフレビュー（Dockerfile チェック）
 
-| # | チェック項目 | なぜ重要か |
-|---|-------------|----------|
-| 1 | マルチステージビルドか | 最終イメージにビルドツールを含めない |
-| 2 | `USER nonroot` が設定されているか | コンテナ内の権限昇格を防止 |
-| 3 | `CGO_ENABLED=0` か | distroless で動作するため必須 |
-| 4 | `go mod download` が COPY より前か | Docker キャッシュレイヤーの最適化 |
+```markdown
+# 指示
+以下の Dockerfile をセキュリティとベストプラクティスの観点でレビューしてください。
+
+# チェック項目
+1. マルチステージビルドか
+2. `USER nonroot` が設定されているか
+3. `CGO_ENABLED=0` か
+4. `go mod download` が COPY . より前か（キャッシュ最適化）
+5. 不要なツールやファイルが最終イメージに含まれていないか
+6. HEALTHCHECK が定義されているか（推奨）
+
+# 入力（Dockerfile）
+（ここに Dockerfile を貼り付け）
+```
 
 ### 4-2. 🤖 CI/CD パイプラインの生成（30分）
+
+> [!IMPORTANT]
+> **出力先**: `hands-on/04-containerization/output/cloudbuild.yaml`
 
 #### プロンプト
 
@@ -492,6 +686,9 @@ accounts, contacts, daily_reports, counseling_records
 - リージョンは asia-northeast1
 - substitutions を使ってパラメータを外出しする
 - service account を明示的に指定する
+
+# 出力先
+`hands-on/04-containerization/output/cloudbuild.yaml`
 ```
 
 📂 **期待出力:** [`04-containerization/expected_output/cloudbuild.yaml`](./04-containerization/expected_output/cloudbuild.yaml)
@@ -510,9 +707,12 @@ accounts, contacts, daily_reports, counseling_records
 
 本日の議論と生成物を AI に渡し、意思決定を文書化させます。
 
+> [!IMPORTANT]
+> **出力先**: `hands-on/05-documentation/output/architecture_decision_records.md`
+
 #### プロンプト
 
-```markdown
+````markdown
 # 指示
 本日のワークショップで決定したアーキテクチャ方針について、
 ADR（Architecture Decision Record）を生成してください。
@@ -535,7 +735,29 @@ ADR（Architecture Decision Record）を生成してください。
 7. Batch の移行: Cloud Run Jobs + Cloud Scheduler へ
 
 （各項目について理由と代替案を含めて生成してください）
-```
+
+# Mermaid 図の生成（必須）
+ADR の末尾に以下の Mermaid 図を必ず含めてください:
+
+## 図1: アーキテクチャ全体図
+全コンポーネント（Cloud Run, Cloud SQL, Pub/Sub, Cloud Scheduler, Artifact Registry, Cloud Build）
+の関係を `graph TD` で可視化。
+
+## 図2: CI/CD パイプラインフロー
+Cloud Build のステップ（test → build → push → deploy）を `graph LR` で可視化。
+
+## 図3: SFDC → Google Cloud マッピング図
+移行元（Apex Controller, Trigger, Batch, SOQL, Custom Object）と
+移行先（Cloud Run Service, Pub/Sub Worker, Cloud Run Jobs, SQL, PostgreSQL）の
+対応関係を `graph LR` で可視化。
+
+## 図4: ステータス遷移図
+日報のステータス遷移（下書き → 提出済 → 承認済 / 差戻し）を
+`stateDiagram-v2` で可視化。
+
+# 出力先
+`hands-on/05-documentation/output/architecture_decision_records.md`
+````
 
 ### 5-2. 今後のロードマップ策定（15分）
 
@@ -550,7 +772,7 @@ ADR（Architecture Decision Record）を生成してください。
 
 1. パイロットアプリとして最適な候補は？（複雑すぎず、ビジネスインパクトがあるもの）
 2. プロンプトテンプレートの管理方法は？（Git リポジトリに蓄積？）
-3. AI 出力のレビュープロセスをどう標準化するか？
+3. AI セルフレビューの精度をどう向上させていくか？
 
 ---
 
@@ -558,14 +780,16 @@ ADR（Architecture Decision Record）を生成してください。
 
 本日のハンズオンで使用・生成した全ファイルは `hands-on/` ディレクトリに格納されています。
 
-| カテゴリ | ディレクトリ | 内容 |
-|---------|-------------|------|
-| SFDC 入力 | `01-schema-conversion/` | メタデータ JSON、SOQL クエリ |
-| Apex 入力 | `02-code-modernization/legacy_apex/` | REST Controller, Trigger, Batch |
-| DDL 出力 | `01-schema-conversion/expected_output/` | PostgreSQL DDL、変換後 SQL |
-| コンテナ | `04-containerization/expected_output/` | Dockerfile、cloudbuild.yaml |
+| カテゴリ | 入力ディレクトリ | 出力ディレクトリ | 内容 |
+|---------|-----------------|-----------------|------|
+| スキーマ変換 | `01-schema-conversion/` | `01-schema-conversion/output/` | DDL、変換後 SQL |
+| コード変換 | `02-code-modernization/legacy_apex/` | `02-code-modernization/output/` | Go プロジェクト一式 |
+| テスト | — | `03-test-generation/output/` | テストコード、検証 SQL |
+| コンテナ | — | `04-containerization/output/` | Dockerfile、cloudbuild.yaml |
+| ドキュメント | — | `05-documentation/output/` | ADR、アーキテクチャ図 |
 
-> 📝 **ポイント**: `expected_output/` は AI が理想的に生成した場合の参考出力です。実際の AI 出力は微妙に異なる場合がありますが、**レビューチェックリスト**に沿って人間が検証することで品質を担保できます。
+> [!TIP]
+> `expected_output/` と `output/` を diff することで、AI 出力の品質を客観的に評価できます。
 
 ---
 
@@ -573,16 +797,67 @@ ADR（Architecture Decision Record）を生成してください。
 
 本ハンズオンで使用したプロンプトは、他の SFDC アプリの移行にも再利用できます。
 
-| # | 用途 | 入力 | 出力 |
-|---|------|------|------|
-| P1 | スキーマ変換 | SFDC メタデータ JSON + 変換ルール | PostgreSQL DDL |
-| P2 | SOQL → SQL | SOQL クエリ + DDL + 変換ルール | PostgreSQL SQL + インデックス |
-| P3 | Apex → REST API | Apex ソース + アーキテクチャ要件 | Go クリーンアーキテクチャ |
-| P4 | Trigger → イベント駆動 | Trigger ソース + 設計要件 | イベント発行 + ワーカー |
-| P5 | テスト生成 | 生成コード + テスト要件 | Table-Driven Tests |
-| P6 | データ整合性検証 | テーブル定義 + 検証項目 | 検証 SQL |
-| P7 | Dockerfile | アプリ構成 + セキュリティ要件 | セキュア Dockerfile |
-| P8 | CI/CD | パイプライン要件 | cloudbuild.yaml |
-| P9 | ADR 生成 | 決定事項 + ADR フォーマット | ADR ドキュメント |
+| # | 用途 | 入力 | 出力先 |
+|---|------|------|--------|
+| P1 | スキーマ変換 | SFDC メタデータ JSON + 変換ルール | `01-*/output/` |
+| P2 | SOQL → SQL | SOQL クエリ + DDL + 変換ルール | `01-*/output/` |
+| P3 | Apex → REST API | Apex ソース + アーキテクチャ要件 | `02-*/output/` |
+| P4 | Trigger → イベント駆動 | Trigger ソース + 設計要件 | `02-*/output/` |
+| P5 | Batch → Cloud Run Jobs | Batch ソース + 設計要件 | `02-*/output/` |
+| P6 | テスト生成 | 生成コード + テスト要件 | `03-*/output/` |
+| P7 | データ整合性検証 | テーブル定義 + 検証項目 | `03-*/output/` |
+| P8 | Dockerfile | アプリ構成 + セキュリティ要件 | `04-*/output/` |
+| P9 | CI/CD | パイプライン要件 | `04-*/output/` |
+| P10 | ADR + 図 | 決定事項 + Mermaid 指示 | `05-*/output/` |
+
+---
+
+## 🤖 AI セルフレビューの仕組み
+
+> [!NOTE]
+> シニアエンジニアのレビューが常に得られるとは限りません。本ハンズオンでは **AI 自身にレビューさせる「セルフレビュー」パターン** を採用しています。
+
+### セルフレビューフロー
+
+```mermaid
+graph TD
+    A["Step N: プロンプト実行"] --> B["🤖 AI がコード/SQL を生成"]
+    B --> C["🤖 AI セルフレビュー<br/>（別プロンプトで検証）"]
+    C --> D{レビュー結果}
+    D -->|"✅ 全項目 PASS"| E["👤 人間が最終確認"]
+    D -->|"❌ FAIL あり"| F["🤖 AI が自動修正"]
+    F --> C
+    E --> G["✅ 次の Step へ"]
+```
+
+### セルフレビューの 3 レベル
+
+| レベル | 方法 | 適用場面 |
+|--------|------|----------|
+| **L1: 静的チェック** | `go vet`, `go build`, `golangci-lint` | 全 Step で自動実行 |
+| **L2: AI レビュー** | 生成物を別プロンプトでレビューさせる | 各 Step 完了時 |
+| **L3: 自動テスト** | `go test -v -race ./...` | Step 3 以降 |
+
+### 汎用セルフレビュープロンプト
+
+```markdown
+# 指示
+あなたはシニアソフトウェアアーキテクトです。
+以下の成果物を「これが本番環境にデプロイされる」前提で厳格にレビューしてください。
+
+# 汎用レビュー観点
+1. **正確性**: 要件を満たしているか
+2. **完全性**: 必要な要素が欠けていないか
+3. **一貫性**: 命名規則や設計パターンが統一されているか
+4. **安全性**: セキュリティ上の問題がないか
+5. **保守性**: 将来の変更に耐えられる設計か
+
+# 出力形式
+各観点について ✅ PASS / ❌ FAIL で判定。
+FAIL の場合は具体的な修正案をコード付きで提示。
+
+# 入力
+（ここに成果物を貼り付け）
+```
 
 > 💡 **プロンプトエンジニアリングのコツ**: 「変換ルール」や「厳守」セクションに具体的な制約を列挙することで、AI の出力品質が大幅に安定します。曖昧な指示は AI のハルシネーションを招きます。
