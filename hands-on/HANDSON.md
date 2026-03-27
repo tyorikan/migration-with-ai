@@ -162,7 +162,7 @@ cat hands-on/01-schema-conversion/sfdc_daily_report_schema.json | python3 -m jso
 
 #### プロンプト
 
-```markdown
+````markdown
 # 指示
 あなたは Salesforce から PostgreSQL への移行スペシャリストです。
 以下の SFDC オブジェクトメタデータ（JSON）を入力として受け取り、
@@ -202,7 +202,7 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 ```json
 （ここに sfdc_daily_report_schema.json の内容を貼り付け）
 ```
-```
+````
 
 #### 🔍 チェックポイント（人間のレビュー）
 
