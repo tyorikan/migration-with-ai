@@ -445,7 +445,7 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 
 #### プロンプト（MonthlyReportBatch.cls の変換）
 
-```markdown
+````markdown
 # 指示
 以下の Salesforce Batch Apex（月次集計バッチ）を、
 **Cloud Run Jobs で実行する Go のバッチプログラム**に変換してください。
@@ -470,13 +470,13 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 ```apex
 （ここに MonthlyReportBatch.cls の内容を貼り付け）
 ```
-```
+````
 
 ### 2-5. 🤖 AI セルフレビュー（生成コード検証）
 
 生成されたコードを AI 自身にレビューさせます。
 
-```markdown
+````markdown
 # 指示
 あなたは Go 言語のシニアアーキテクトです。
 以下の生成コードを厳格にレビューし、問題点と改善案を指摘してください。
@@ -507,7 +507,7 @@ FAIL の場合は修正コードを具体的に提示すること。
 
 # 入力（レビュー対象のコード）
 （ここに生成された Go コードを全ファイル貼り付け）
-```
+````
 
 ### 💬 議論ポイント
 
