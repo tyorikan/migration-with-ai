@@ -225,30 +225,55 @@ graph LR
 
 ### 図4: 日報ステータス遷移図
 
+> **アクター**: SV（スーパーバイザー）= 日報作成者、上長 = 承認者
+
 ```mermaid
 stateDiagram-v2
-    [*] --> 下書き : 新規作成
+    direction LR
 
-    下書き --> 提出済 : submitReport()
-    提出済 --> 承認済 : approveReport()
-    提出済 --> 差戻し : rejectReport()
-    差戻し --> 提出済 : resubmitReport()
+    [*] --> 下書き : SV が日報を新規作成
 
-    提出済 --> 提出済 : Pub/Sub Event発行<br/>last_visit_date 更新
+    state 下書き {
+        [*] --> 編集中
+        編集中 --> 編集中 : SV が内容を編集
+        編集中 --> カウンセリング追加
+        カウンセリング追加 --> 編集中
+    }
 
-    承認済 --> [*]
+    下書き --> 提出済 : SV が提出ボタンを押下\n【バリデーション通過が必須】
 
-    note right of 下書き
-        編集・削除が可能
-        バリデーション実行
-    end note
+    state 提出済 {
+        [*] --> 承認待ち
+    }
 
-    note right of 提出済
-        承認者のみ操作可能
-        イベント駆動で副作用処理
-    end note
+    提出済 --> 承認済 : 上長が承認
+    提出済 --> 差戻し : 上長が差戻し\n【差戻し理由を入力】
 
-    note right of 承認済
-        変更不可（イミュータブル）
-        approved_by / approved_date 記録
-    end note
+    state 差戻し {
+        [*] --> 修正待ち
+        修正待ち --> 修正中 : SV が修正開始
+        修正中 --> 修正中 : SV が内容を修正
+    }
+
+    差戻し --> 提出済 : SV が再提出\n【バリデーション通過が必須】
+
+    承認済 --> [*] : 完了（変更不可）
+```
+
+#### 遷移時のシステム処理（副作用）
+
+| 遷移 | トリガー | システム処理 |
+|---|---|---|
+| 下書き → **提出済** | SV が提出 | ① バリデーション実行（必須項目・時間整合性チェック）<br/>② `report.submitted` イベントを Pub/Sub に Publish<br/>③ Pub/Sub → Cloud Run Service が `accounts.last_visit_date` を更新 |
+| 提出済 → **承認済** | 上長が承認 | ① `approved_by` / `approved_at` を記録<br/>② ステータスをイミュータブル化（以降の編集を禁止） |
+| 提出済 → **差戻し** | 上長が差戻し | ① `rejection_reason` を記録<br/>② SV に通知 |
+| 差戻し → **提出済** | SV が再提出 | ① バリデーション再実行<br/>② `report.submitted` イベントを再 Publish |
+
+#### バリデーションルール（提出時）
+
+| ルール | 内容 |
+|---|---|
+| 必須項目 | `report_date`, `account_id`, `visit_purpose`, `overall_condition` |
+| 時間整合性 | `visit_start_time` < `visit_end_time` |
+| カウンセリング | 1 件以上の `counseling_records` が紐づくこと |
+| 所要時間 | `duration_minutes` > 0 |
