@@ -14,6 +14,7 @@ CREATE TABLE accounts (
     phone           VARCHAR(40),
     billing_city    VARCHAR(40),
     billing_state   VARCHAR(80),
+    last_visit_date DATE,
     created_at      TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
 );

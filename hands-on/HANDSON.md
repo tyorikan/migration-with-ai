@@ -99,6 +99,7 @@ erDiagram
         string Region__c "エリア"
         date OpenDate__c "開店日"
         boolean IsActive__c "稼働中"
+        date LastVisitDate__c "最終訪問日"
     }
     DailyReport {
         id Id PK
@@ -524,41 +525,67 @@ FAIL の場合は修正コードを具体的に提示すること。
 Step 2 で生成したコードを AI に渡し、テストコードを生成させます。
 
 > [!IMPORTANT]
-> **出力先**: `hands-on/03-test-generation/output/` 配下に各テストファイルを出力
+> **出力先**: テストファイルは **ソースモジュール内の各パッケージに `*_test.go` として配置** します。
+> 別モジュールに出力するとカバレッジ計測が機能しないため、テスト対象と同一パッケージに置きます。
+>
+> ```
+> hands-on/02-code-modernization/output/generated_go/internal/
+> ├── config/env_test.go
+> ├── model/daily_report_test.go
+> ├── usecase/daily_report_test.go
+> ├── handler/daily_report_test.go
+> ├── event/publisher_test.go
+> ├── repository/daily_report_test.go  ← go-sqlmock で DB モック
+> └── worker/daily_report_worker_test.go ← go-sqlmock で DB モック
+> ```
 
 #### プロンプト
 
 ```markdown
 # 指示
-以下の Go コード（handler / usecase / repository）に対する
+以下の Go コード（**全パッケージ**: model / usecase / handler / config / event / repository / worker）に対する
 **網羅的な単体テスト**を生成してください。
+テストファイルはソースと同一パッケージ内に `*_test.go` として配置してください。
 
 # テスト要件（厳守）
 1. **テスト形式**: Table-Driven Tests（Go の標準的なテーブル駆動テスト）
-2. **モック**: usecase のテストでは repository のインターフェースをモック化する
+2. **モック戦略**:
+   - usecase テスト → `repository.DailyReportRepository` インターフェースをモック化
+   - handler テスト → `usecase.DailyReportUseCase` インターフェースをモック化
+   - event テスト → `event.Publisher` インターフェースをモック化
+   - repository テスト → `go-sqlmock` で `*sql.DB` をモック化
+   - worker テスト → `go-sqlmock` で `*sql.DB` をモック化
 3. **カバーすべきケース**:
    - ✅ 正常系（CRUD 各操作の成功パターン）
    - ❌ バリデーションエラー（必須項目の欠損、不正な Picklist 値）
    - 💥 DB エラー時のハンドリング（接続エラー、制約違反）
    - 🔒 ステータス遷移の制約（「下書き」→「提出済」のみ許可 等）
    - 📏 境界値テスト（DurationMinutes が 0 や負の場合）
+   - 🔧 config テスト（環境変数の有無、デフォルト値、`GetEnvInt` の不正値）
+   - 📡 event テスト（InMemoryPublisher の Publish / Subscribe、ハンドラーエラー時の継続動作、`PublishReportSubmitted` のイベント構築）
+   - 🗄️ repository テスト（ListReports / GetReportByID / CreateReportWithCounselings / UpdateReportStatus / DeleteReport）
+   - ⚙️ worker テスト（HandleReportSubmitted のイベント処理、トランザクション内の UPDATE / SELECT / INSERT）
 4. **handler テスト**: `httptest.NewRecorder` を使い、HTTP ステータスコードとレスポンスボディを検証
 5. **テスト命名**: `Test<関数名>_<シナリオ>` 形式
-6. **テストが通ること**: `go test -v -race ./...` でパスすること
+6. **テストが通ること**: `go test -v -race -cover ./internal/...` でパスすること
 
 # 出力先
-以下のファイルを `hands-on/03-test-generation/output/` に出力:
-- `model_test.go` — モデルバリデーションテスト
-- `usecase_test.go` — ユースケーステスト（mockRepo 使用）
-- `handler_test.go` — HTTP ハンドラーテスト
+各テストファイルをソースと同一パッケージ内に配置:
+- `internal/model/daily_report_test.go` — モデルバリデーション・構造体テスト
+- `internal/usecase/daily_report_test.go` — ユースケーステスト（mockRepo 使用）
+- `internal/handler/daily_report_test.go` — HTTP ハンドラーテスト（mockUseCase 使用）
+- `internal/config/env_test.go` — 環境変数ヘルパー / DSN 構築テスト
+- `internal/event/publisher_test.go` — InMemoryPublisher / イベント発行テスト
+- `internal/repository/daily_report_test.go` — DB 操作テスト（go-sqlmock 使用）
+- `internal/worker/daily_report_worker_test.go` — イベントワーカーテスト（go-sqlmock 使用）
 
 # 入力（テスト対象のコード）
-（ここに Step 2 で生成した handler / usecase / model のコードを貼り付け）
+（ここに Step 2 で生成した全パッケージのコードを貼り付け）
 ```
 
 #### 🤖 AI セルフレビュー（テスト品質チェック）
 
-```markdown
+````markdown
 # 指示
 以下の Go テストコードをレビューし、品質を評価してください。
 
@@ -571,13 +598,13 @@ Step 2 で生成したコードを AI に渡し、テストコードを生成さ
 
 # 自動検証コマンド
 ```bash
-go test -v -race -count=1 ./...
-go test -cover ./...
+go test -v -race -count=1 ./internal/...
+go test -cover ./internal/...
 ```
 
 # 入力（テストコード）
 （ここにテストコードを貼り付け）
-```
+````
 
 ### 3-2. 🤖 データ整合性検証 SQL の生成（15分）
 

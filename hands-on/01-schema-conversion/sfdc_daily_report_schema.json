@@ -13,7 +13,8 @@
         { "name": "IsActive__c", "label": "稼働中", "type": "Checkbox", "required": false, "defaultValue": true },
         { "name": "Phone", "label": "電話番号", "type": "Phone", "length": 40, "required": false },
         { "name": "BillingCity", "label": "市区町村", "type": "Text", "length": 40, "required": false },
-        { "name": "BillingState", "label": "都道府県", "type": "Text", "length": 80, "required": false }
+        { "name": "BillingState", "label": "都道府県", "type": "Text", "length": 80, "required": false },
+        { "name": "LastVisitDate__c", "label": "最終訪問日", "type": "Date", "required": false }
       ]
     },
     {

@@ -1,0 +1,99 @@
+# ============================================================
+# SV 業務日報 API — Cloud Build CI/CD パイプライン
+# テスト → ビルド → Push → Cloud Run デプロイ
+# ============================================================
+
+substitutions:
+  _REGION: asia-northeast1
+  _REPOSITORY: daily-report-api
+  _SERVICE_NAME: daily-report-api
+  _IMAGE_NAME: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}
+  _CLOUD_SQL_INSTANCE: ${PROJECT_ID}:${_REGION}:daily-report-db
+  _DB_NAME: daily_report
+  _DB_USER: app_user
+  _DB_SECRET: daily-report-db-password
+  _SERVICE_ACCOUNT: daily-report-api@${PROJECT_ID}.iam.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  # ----------------------------------------------------------
+  # Step 1: Unit Test
+  # ----------------------------------------------------------
+  - id: unit-test
+    name: golang:1.24
+    entrypoint: go
+    args:
+      - test
+      - -v
+      - -race
+      - -cover
+      - ./internal/...
+    env:
+      - CGO_ENABLED=1   # -race requires CGO
+
+  # ----------------------------------------------------------
+  # Step 2: Docker Build
+  # ----------------------------------------------------------
+  - id: docker-build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_IMAGE_NAME}:${SHORT_SHA}
+      - -t
+      - ${_IMAGE_NAME}:latest
+      - -f
+      - hands-on/04-containerization/output/Dockerfile
+      - hands-on/02-code-modernization/output/generated_go
+    waitFor:
+      - unit-test
+
+  # ----------------------------------------------------------
+  # Step 3: Docker Push to Artifact Registry
+  # ----------------------------------------------------------
+  - id: docker-push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_IMAGE_NAME}
+    waitFor:
+      - docker-build
+
+  # ----------------------------------------------------------
+  # Step 4: Deploy to Cloud Run
+  # ----------------------------------------------------------
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image=${_IMAGE_NAME}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --port=8080
+      - --service-account=${_SERVICE_ACCOUNT}
+      - --add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
+      - --set-env-vars=DB_HOST=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_NAME=${_DB_NAME},DB_USER=${_DB_USER},DB_PORT=5432
+      - --set-secrets=DB_PASSWORD=${_DB_SECRET}:latest
+      - --min-instances=0
+      - --max-instances=10
+      - --cpu=1
+      - --memory=512Mi
+      - --ingress=all
+      - --allow-unauthenticated
+      - --quiet
+    waitFor:
+      - docker-push
+
+# イメージを Artifact Registry に保存
+images:
+  - ${_IMAGE_NAME}:${SHORT_SHA}
+  - ${_IMAGE_NAME}:latest
+
+timeout: 1200s
