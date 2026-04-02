@@ -13,7 +13,8 @@
 | 10:00 – 10:30 | **Step 0** | キックオフ：AI ネイティブ移行の合意形成 | — |
 | 10:30 – 12:00 | **Step 1** | DB スキーマ変換（SFDC → PostgreSQL DDL） | 🤖 DDL 自動生成、SOQL→SQL 変換 |
 | 12:00 – 13:00 | | 🍱 昼休み | |
-| 13:00 – 14:30 | **Step 2** | コードリファクタリング（Apex → モダン API） | 🤖 クリーンアーキテクチャへの翻訳 |
+| 13:00 – 13:30 | **Step 1.5** | データ移行（SFDC → PostgreSQL）＋ローカル検証環境構築 | 🤖 変換スクリプト / シードデータ |
+| 13:30 – 14:30 | **Step 2** | コードリファクタリング（Apex → モダン API） | 🤖 クリーンアーキテクチャへの翻訳 |
 | 14:30 – 15:30 | **Step 3** | テスト自動生成（品質保証のモダナイズ） | 🤖 テストコード生成 |
 | 15:30 – 16:30 | **Step 4** | コンテナ化・CI パイプライン構築 | 🤖 Dockerfile / CI YAML 生成 |
 | 16:30 – 17:00 | **Step 5** | Docs as Code & クロージング | 🤖 ADR / アーキテクチャ図の自動生成 |
@@ -28,6 +29,11 @@
 ```
 hands-on/
 ├── README.md                             ← 📖 本ドキュメント
+├── 00-sfdc-reference/                       # ← 📚 SFDC 参考資料 & データ移行ツール
+│   ├── SFDC_IMPLEMENTATION_GUIDE.md         # SFDC 実装解説（Apex/SOQL の読み方）
+│   ├── DATA_MIGRATION_GUIDE.md              # データ移行ガイド（抽出→変換→投入→検証）
+│   ├── seed_data.sql                        # ワークショップ用シードデータ
+│   └── sfdc_csv_to_postgres.py              # SFDC CSV → PostgreSQL CSV 変換スクリプト
 ├── 01-schema-conversion/
 │   ├── sfdc_daily_report_schema.json        # SFDC メタデータ（入力）
 │   ├── soql_queries.soql                    # SOQL クエリ集（入力）
@@ -328,7 +334,96 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 
 ---
 
-## Step 2: AI 駆動コードリファクタリング（13:00 – 14:30）
+## Step 1.5: データ移行 & ローカル検証環境構築（13:00 – 13:30）
+
+> [!NOTE]
+> スキーマ（器）を作っただけでは移行は完了しません。
+> **既存の SFDC 上のデータ（中身）をどう PostgreSQL に持ってくるか** もワークショップで体験します。
+
+### 1.5-1. データ移行の全体フロー（5分）
+
+```mermaid
+graph LR
+    subgraph "移行元: Salesforce"
+        S1["Account / Contact<br/>DailyReport / Counseling"]
+    end
+    subgraph "中間処理"
+        E1["① CSV エクスポート<br/>Data Loader / sf CLI"]
+        E2["② CSV 変換<br/>sfdc_csv_to_postgres.py"]
+    end
+    subgraph "移行先: PostgreSQL"
+        P1["③ データ投入<br/>psql COPY"]
+        P2["④ 整合性検証<br/>data_validation.sql"]
+    end
+    S1 --> E1 --> E2 --> P1 --> P2
+```
+
+📂 **詳細ガイド:** [`00-sfdc-reference/DATA_MIGRATION_GUIDE.md`](./00-sfdc-reference/DATA_MIGRATION_GUIDE.md)
+
+### 1.5-2. ワークショップ環境のセットアップ（10分）
+
+実際の SFDC 組織に接続できないワークショップ環境では、**シードデータ**を使って PostgreSQL を初期セットアップします。
+
+```bash
+# 1. PostgreSQL をコンテナで起動
+docker run -d \
+  --name daily-report-db \
+  -e POSTGRES_USER=app_user \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=daily_report \
+  -p 5432:5432 \
+  postgres:16
+
+# 2. DDL を適用（Step 1 で生成した DDL を使用）
+cat hands-on/01-schema-conversion/output/generated_ddl.sql | \
+  docker exec -i daily-report-db psql -U app_user -d daily_report
+
+# 3. シードデータを投入
+cat hands-on/00-sfdc-reference/seed_data.sql | \
+  docker exec -i daily-report-db psql -U app_user -d daily_report
+
+# 4. データ確認
+docker exec -i daily-report-db psql -U app_user -d daily_report \
+  -c "SELECT name, store_code, region FROM accounts;"
+```
+
+📂 **シードデータ:** [`00-sfdc-reference/seed_data.sql`](./00-sfdc-reference/seed_data.sql)
+（7店舗・8担当者・6日報・8カウンセリング記録、全ステータス・全カテゴリ網羅）
+
+### 1.5-3. 本番データ移行の場合（5分・解説のみ）
+
+実際の本番移行では、以下の手順でデータを移行します：
+
+| Step | 手順 | ツール |
+|------|------|--------|
+| ① | SFDC から CSV エクスポート | Data Loader / sf CLI / Bulk API 2.0 |
+| ② | CSV のカラム名・型を変換 | [`sfdc_csv_to_postgres.py`](./00-sfdc-reference/sfdc_csv_to_postgres.py) |
+| ③ | PostgreSQL にデータ投入 | `psql \copy` / `gcloud sql import csv` |
+| ④ | データ整合性を検証 | `data_validation.sql`（Step 3 で生成） |
+
+```bash
+# 本番移行の例（CSV 変換スクリプトの使い方）
+python3 hands-on/00-sfdc-reference/sfdc_csv_to_postgres.py \
+  accounts sfdc_export/Account.csv pg_import/accounts.csv
+# → ✅ accounts: 150 records converted
+```
+
+> [!WARNING]
+> 本番移行時の注意点:
+> - SFDC ID の **15桁 / 18桁** 問題（Data Loader は 18桁出力で問題なし）
+> - DateTime の **タイムゾーン** 変換（SFDC UTC → PostgreSQL `TIMESTAMPTZ`）
+> - **差分移行**: 移行期間中の更新分を追加反映する手順が必要
+> - **User ID マッピング**: SFDC `User.Id` → 移行先の認証基盤との紐付け
+
+### 💬 議論ポイント
+
+- データ移行のカットオーバー戦略（ビッグバン vs 段階移行）
+- 差分移行の期間と頻度
+- SFDC の添付ファイル（ContentDocument）の移行は必要か？
+
+---
+
+## Step 2: AI 駆動コードリファクタリング（13:30 – 14:30）
 
 ### 2-1. レガシー Apex コードの確認（10分）
 
@@ -809,6 +904,7 @@ Cloud Build のステップ（test → build → push → deploy）を `graph LR
 
 | カテゴリ | 入力ディレクトリ | 出力ディレクトリ | 内容 |
 |---------|-----------------|-----------------|------|
+| SFDC 参考資料 | `00-sfdc-reference/` | — | 実装解説、データ移行ガイド、シードデータ、CSV 変換スクリプト |
 | スキーマ変換 | `01-schema-conversion/` | `01-schema-conversion/output/` | DDL、変換後 SQL |
 | コード変換 | `02-code-modernization/legacy_apex/` | `02-code-modernization/output/` | Go プロジェクト一式 |
 | テスト | — | `03-test-generation/output/` | テストコード、検証 SQL |
@@ -828,10 +924,11 @@ Cloud Build のステップ（test → build → push → deploy）を `graph LR
 |---|------|------|--------|
 | P1 | スキーマ変換 | SFDC メタデータ JSON + 変換ルール | `01-*/output/` |
 | P2 | SOQL → SQL | SOQL クエリ + DDL + 変換ルール | `01-*/output/` |
+| P2.5 | データ移行 | SFDC CSV + 変換ルール | `00-sfdc-reference/` |
 | P3 | Apex → REST API | Apex ソース + アーキテクチャ要件 | `02-*/output/` |
 | P4 | Trigger → イベント駆動 | Trigger ソース + 設計要件 | `02-*/output/` |
 | P5 | Batch → Cloud Run Jobs | Batch ソース + 設計要件 | `02-*/output/` |
-| P6 | テスト生成 | 生成コード + テスト要件 | `03-*/output/` |
+| P6 | テスト生成 | 生成コード + テスト要件 | `02-*/output/` |
 | P7 | データ整合性検証 | テーブル定義 + 検証項目 | `03-*/output/` |
 | P8 | Dockerfile | アプリ構成 + セキュリティ要件 | `04-*/output/` |
 | P9 | CI/CD | パイプライン要件 | `04-*/output/` |
