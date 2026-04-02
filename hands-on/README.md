@@ -327,6 +327,97 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 
 📂 **期待出力:** [`01-schema-conversion/expected_output/converted_queries.sql`](./01-schema-conversion/expected_output/converted_queries.sql)
 
+### 1-4. ▶️ 生成した DDL & SQL の実行・検証（20分）
+
+> [!IMPORTANT]
+> AI が生成した DDL と SQL は、**必ずローカルの PostgreSQL で実行して正しく動くことを確認**してください。
+> 「生成しただけ」で終わらせず、「動く」ことを証明するのがこのハンズオンの重要なポイントです。
+
+#### 1. 検証用 DB の起動
+
+まず、ローカルに PostgreSQL 環境を構築します。
+
+```bash
+# PostgreSQL をコンテナで起動
+docker run -d \
+  --name daily-report-db \
+  -e POSTGRES_USER=app_user \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=daily_report \
+  -p 5432:5432 \
+  postgres:16
+
+# DB の起動を数秒待機します
+sleep 3
+```
+
+#### 2. DDL の適用と確認
+
+```bash
+# Step 1-2 で生成した DDL を適用
+cat hands-on/01-schema-conversion/output/generated_ddl.sql | \
+  docker exec -i daily-report-db psql -U app_user -d daily_report
+
+# テーブルが作成されたか確認
+docker exec -i daily-report-db psql -U app_user -d daily_report \
+  -c "\dt"
+# 期待結果:
+#  Schema |        Name          | Type  |  Owner
+# --------+---------------------+-------+----------
+#  public | accounts            | table | app_user
+#  public | contacts            | table | app_user
+#  public | counseling_records  | table | app_user
+#  public | daily_reports       | table | app_user
+```
+
+#### 3. シードデータの投入と確認
+
+作成したテーブルに、テスト用のシードデータを直接流し込みます。
+
+```bash
+# シードデータを投入
+cat hands-on/00-sfdc-reference/seed_data.sql | \
+  docker exec -i daily-report-db psql -U app_user -d daily_report
+
+# 投入状況の確認
+docker exec -i daily-report-db psql -U app_user -d daily_report \
+  -c "SELECT name, store_code, region FROM accounts;"
+```
+
+📂 **シードデータ:** [`00-sfdc-reference/seed_data.sql`](./00-sfdc-reference/seed_data.sql)
+（7店舗・8担当者・6日報・8カウンセリング記録、全ステータス・全カテゴリ網羅）
+
+#### 4. 変換後 SQL の実行（データ検証）
+
+```bash
+# 変換後 SQL（Q1: 関東エリアの提出済み日報）を実行
+docker exec -i daily-report-db psql -U app_user -d daily_report \
+  -c "SELECT dr.name, dr.report_date, a.name AS store, dr.status \
+      FROM daily_reports dr JOIN accounts a ON dr.account_id = a.id \
+      WHERE a.region = '関東' AND dr.status = '提出済' \
+      ORDER BY dr.report_date DESC;"
+
+# 変換後 SQL ファイルをまとめて実行（全5クエリ）
+cat hands-on/01-schema-conversion/output/converted_queries.sql | \
+  docker exec -i daily-report-db psql -U app_user -d daily_report
+```
+
+#### 期待出力との差分比較
+
+```bash
+# DDL の差分確認
+diff hands-on/01-schema-conversion/output/generated_ddl.sql \
+     hands-on/01-schema-conversion/expected_output/ddl.sql
+
+# SQL の差分確認
+diff hands-on/01-schema-conversion/output/converted_queries.sql \
+     hands-on/01-schema-conversion/expected_output/converted_queries.sql
+```
+
+> [!TIP]
+> 差分があること自体は問題ありません。AI の出力バリエーションとして議論のネタにしましょう。
+> 重要なのは「**クエリが正しく実行でき、期待通りの結果を返すか**」です。
+
 ### 💬 議論ポイント
 
 - Picklist の値を CHECK 制約で管理するか、別テーブル（マスター）にするか？
@@ -334,13 +425,13 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 
 ---
 
-## Step 1.5: データ移行 & ローカル検証環境構築（13:00 – 13:30）
+## Step 1.5: 本番データ移行戦略の策定（13:00 – 13:30）
 
 > [!NOTE]
 > スキーマ（器）を作っただけでは移行は完了しません。
-> **既存の SFDC 上のデータ（中身）をどう PostgreSQL に持ってくるか** もワークショップで体験します。
+> **既存の SFDC 上のデータ（中身）をどう PostgreSQL に持ってくるか** を策定します。（ここはワークショップでは解説・議論のみとなります）
 
-### 1.5-1. データ移行の全体フロー（5分）
+### 1.5-1. データ移行の全体フロー（15分）
 
 ```mermaid
 graph LR
@@ -360,37 +451,7 @@ graph LR
 
 📂 **詳細ガイド:** [`00-sfdc-reference/DATA_MIGRATION_GUIDE.md`](./00-sfdc-reference/DATA_MIGRATION_GUIDE.md)
 
-### 1.5-2. ワークショップ環境のセットアップ（10分）
-
-実際の SFDC 組織に接続できないワークショップ環境では、**シードデータ**を使って PostgreSQL を初期セットアップします。
-
-```bash
-# 1. PostgreSQL をコンテナで起動
-docker run -d \
-  --name daily-report-db \
-  -e POSTGRES_USER=app_user \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=daily_report \
-  -p 5432:5432 \
-  postgres:16
-
-# 2. DDL を適用（Step 1 で生成した DDL を使用）
-cat hands-on/01-schema-conversion/output/generated_ddl.sql | \
-  docker exec -i daily-report-db psql -U app_user -d daily_report
-
-# 3. シードデータを投入
-cat hands-on/00-sfdc-reference/seed_data.sql | \
-  docker exec -i daily-report-db psql -U app_user -d daily_report
-
-# 4. データ確認
-docker exec -i daily-report-db psql -U app_user -d daily_report \
-  -c "SELECT name, store_code, region FROM accounts;"
-```
-
-📂 **シードデータ:** [`00-sfdc-reference/seed_data.sql`](./00-sfdc-reference/seed_data.sql)
-（7店舗・8担当者・6日報・8カウンセリング記録、全ステータス・全カテゴリ網羅）
-
-### 1.5-3. 本番データ移行の場合（5分・解説のみ）
+### 1.5-2. 本番データ移行の具体的な手順（10分・解説）
 
 実際の本番移行では、以下の手順でデータを移行します：
 
@@ -605,6 +666,112 @@ FAIL の場合は修正コードを具体的に提示すること。
 （ここに生成された Go コードを全ファイル貼り付け）
 ````
 
+### 2-6. ▶️ 生成した Go コードのビルド・実行・API テスト（20分）
+
+> [!IMPORTANT]
+> AI が生成したコードは、**必ずローカルでビルド・起動・API テスト**まで行ってください。
+> ビルドが通らない場合は AI にエラーメッセージを渡して修正させます。
+
+#### ビルド確認
+
+```bash
+cd hands-on/02-code-modernization/output/generated_go
+
+# 依存解決
+go mod tidy
+
+# 静的解析
+go vet ./...
+
+# ビルド（全パッケージ）
+go build ./...
+
+# 期待結果: エラーなし（何も出力されなければ成功）
+```
+
+> [!WARNING]
+> `go mod tidy` でエラーになる場合、`go.mod` に不足パッケージがあります。
+> エラーメッセージを AI に渡して修正させてください。
+
+#### API サーバーの起動
+
+```bash
+# 環境変数を設定して API サーバーを起動
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=app_user
+export DB_PASSWORD=password
+export DB_NAME=daily_report
+
+go run cmd/server/main.go
+# 期待結果: "Server started on :8080" のようなログが出力される
+```
+
+#### API テスト（別ターミナルで実行）
+
+```bash
+# --- GET: 日報一覧の取得 ---
+curl -s http://localhost:8080/api/daily-reports | python3 -m json.tool
+# 期待結果: JSON 配列（シードデータの日報6件）
+
+# --- GET: ステータスフィルタ付き ---
+curl -s "http://localhost:8080/api/daily-reports?status=承認済" | python3 -m json.tool
+# 期待結果: status=承認済 の日報のみ返る
+
+# --- POST: 日報の新規作成 ---
+curl -s -X POST http://localhost:8080/api/daily-reports \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reportDate": "2026-04-02",
+    "supervisorId": "SV001",
+    "accountId": "ACC001",
+    "visitStartTime": "2026-04-02T09:00:00+09:00",
+    "visitEndTime": "2026-04-02T12:00:00+09:00",
+    "visitPurpose": "定期巡回",
+    "overallCondition": "A",
+    "summary": "AI ハンズオンから作成したテスト日報",
+    "counselingRecords": [
+      {
+        "contactId": "CON001",
+        "category": "業務改善",
+        "detail": "API 経由でカウンセリング記録を作成",
+        "durationMinutes": 30,
+        "followUpRequired": true,
+        "followUpDate": "2026-04-09"
+      }
+    ]
+  }' | python3 -m json.tool
+# 期待結果: 作成された日報の JSON が返る（status=下書き）
+
+# --- PATCH: ステータス更新（下書き → 提出済） ---
+# ※ 上の POST で返った ID を使う
+curl -s -X PATCH http://localhost:8080/api/daily-reports/{ID} \
+  -H "Content-Type: application/json" \
+  -d '{"status": "提出済"}' | python3 -m json.tool
+# 期待結果: status が "提出済" に変更された JSON
+
+# --- PATCH: 不正なステータス遷移（承認済 → 下書き）---
+curl -s -X PATCH http://localhost:8080/api/daily-reports/{ID} \
+  -H "Content-Type: application/json" \
+  -d '{"status": "下書き"}'
+# 期待結果: 400 エラー（ステータス遷移ルール違反）
+
+# --- DELETE: 下書き以外の日報を削除 ---
+curl -s -X DELETE http://localhost:8080/api/daily-reports/{ID}
+# 期待結果: 400 エラー（下書き以外は削除不可）
+```
+
+#### Apex の機能等価性チェックリスト
+
+| # | Apex の動作 | Go API テスト | 結果 |
+|---|-----------|--------------|------|
+| 1 | `@HttpGet` フィルタ付き一覧 | `GET /api/daily-reports?status=承認済` | ☐ |
+| 2 | `@HttpPost` 日報+子レコード一括作成 | `POST /api/daily-reports` | ☐ |
+| 3 | `@HttpPatch` ステータス遷移バリデーション | `PATCH ...` 下書き→提出済 | ☐ |
+| 4 | `@HttpPatch` 不正遷移の拒否 | `PATCH ...` 承認済→下書き → 400 | ☐ |
+| 5 | `@HttpDelete` 下書きのみ削除可能 | `DELETE ...` 提出済 → 400 | ☐ |
+| 6 | CASCADE 削除 | 日報削除時に counseling_records も消える | ☐ |
+
 ### 💬 議論ポイント
 
 - Apex の暗黙的な DML ガバナー制限 vs Go の明示的なトランザクション管理
@@ -728,6 +895,72 @@ accounts, contacts, daily_reports, counseling_records
 `hands-on/03-test-generation/output/data_validation.sql`
 ```
 
+### 3-3. ▶️ テストの実行・カバレッジ確認（15分）
+
+> [!IMPORTANT]
+> テストコードも「生成して終わり」ではありません。**必ず実行して全テストがパスすることを確認**してください。
+
+#### 単体テストの実行
+
+```bash
+cd hands-on/02-code-modernization/output/generated_go
+
+# 依存解決（go-sqlmock 等が追加されている場合）
+go mod tidy
+
+# 全テスト実行（レースコンディション検出付き）
+go test -v -race -count=1 ./internal/...
+# 期待結果: 全テストが PASS
+#   --- PASS: TestValidateDailyReport_ValidInput (0.00s)
+#   --- PASS: TestCreateReport_Success (0.00s)
+#   --- PASS: TestHandleListReports_Success (0.00s)
+#   ...
+#   PASS
+```
+
+#### カバレッジ計測
+
+```bash
+# カバレッジ率の確認
+go test -cover ./internal/...
+# 期待結果:
+#   ok   daily-report-api/internal/model      0.005s  coverage: 85.0% of statements
+#   ok   daily-report-api/internal/usecase     0.008s  coverage: 78.0% of statements
+#   ok   daily-report-api/internal/handler     0.012s  coverage: 72.0% of statements
+
+# HTML カバレッジレポートの生成
+go test -coverprofile=coverage.out ./internal/...
+go tool cover -html=coverage.out -o coverage.html
+open coverage.html  # ブラウザでカバレッジを視覚的に確認
+```
+
+> [!TIP]
+> テストが失敗した場合は、エラーメッセージを AI に渡して修正させましょう。
+> 「このテストが失敗しました。以下のエラーを見て修正してください」と伝えるだけで OK です。
+
+#### データ整合性検証 SQL の実行
+
+```bash
+# Step 1.5 で投入したシードデータに対して検証 SQL を実行
+cat hands-on/03-test-generation/output/data_validation.sql | \
+  docker exec -i daily-report-db psql -U app_user -d daily_report
+# 期待結果:
+#   -- レコード件数チェック
+#    table_name   | count
+#   --------------+-------
+#    accounts     |     7
+#    contacts     |     8
+#    daily_reports|     6
+#    counseling_records | 8
+#
+#   -- 孤立レコードチェック
+#    relation              | orphan_count
+#   -----------------------+-------------
+#    contacts→accounts    |            0
+#    daily_reports→accounts|            0
+#    ...
+```
+
 ### 💬 議論ポイント
 
 - テストカバレッジの目標値は何%にするか？
@@ -815,6 +1048,106 @@ accounts, contacts, daily_reports, counseling_records
 
 📂 **期待出力:** [`04-containerization/expected_output/cloudbuild.yaml`](./04-containerization/expected_output/cloudbuild.yaml)
 
+### 4-3. ▶️ Docker イメージのビルド・起動・動作確認（20分）
+
+> [!IMPORTANT]
+> Dockerfile も「生成して終わり」ではありません。**ローカルでイメージをビルドし、コンテナとして起動して API が動くことを確認**してください。
+
+#### Docker イメージのビルド
+
+```bash
+cd hands-on/02-code-modernization/output/generated_go
+
+# 生成された Dockerfile をコピー（または同じディレクトリに配置）
+cp ../../../04-containerization/output/Dockerfile .
+# ※ パスは output 構成に合わせて調整してください
+
+# イメージをビルド
+docker build -t daily-report-api:latest .
+# 期待結果:
+#   => [build 1/6] FROM golang:1.24 ...
+#   => [build 6/6] RUN go build ...
+#   => [runtime 1/3] FROM gcr.io/distroless/static-debian12:nonroot
+#   => DONE
+
+# イメージサイズの確認（distroless なので小さいはず）
+docker images daily-report-api
+# 期待結果: SIZE が 15-25MB 程度
+```
+
+#### コンテナの起動と API テスト
+
+```bash
+# DB と API を同じ名前解決で繋ぐため、カスタムネットワークを作成し DB を所属させます（Podman 互換）
+docker network create report-net || true
+docker network connect report-net daily-report-db || true
+
+# コンテナとして起動（PostgreSQL と同じネットワーク上で）
+docker run -d \
+  --name daily-report-api \
+  --network report-net \
+  -e DB_HOST=daily-report-db \
+  -e DB_PORT=5432 \
+  -e DB_USER=app_user \
+  -e DB_PASSWORD=password \
+  -e DB_NAME=daily_report \
+  -p 8080:8080 \
+  daily-report-api:latest
+
+# ログを確認（起動成功を確認）
+docker logs -f daily-report-api
+# 期待結果: "database connected" と "server starting port=8080" が表示されれば成功です。(Ctrl+Cで抜ける)
+
+# API テスト
+curl -s http://localhost:8080/api/daily-reports | python3 -m json.tool
+# 期待結果: JSON 配列が返る（Step 2-6 と同じ）
+
+# ヘルスチェック（定義されている場合）
+curl -s http://localhost:8080/health
+# 期待結果: 200 OK
+```
+
+#### セキュリティチェック
+
+```bash
+# コンテナ内のユーザーを確認（nonroot であること）
+docker exec daily-report-api whoami 2>/dev/null || echo "distroless: shell なし（正常）"
+
+# 不要なツールが入っていないことを確認
+docker exec daily-report-api ls 2>/dev/null || echo "distroless: ls なし（正常）"
+```
+
+#### クリーンアップ
+
+```bash
+# テスト完了後にコンテナを停止・削除
+docker stop daily-report-api && docker rm daily-report-api
+```
+
+#### cloudbuild.yaml の構文チェック
+
+```bash
+# YAML の構文検証（Python の yaml モジュールで）
+python3 -c "
+import yaml, sys
+with open('hands-on/04-containerization/output/cloudbuild.yaml') as f:
+    data = yaml.safe_load(f)
+    print(f'✅ 構文OK: {len(data.get(\"steps\", []))} steps defined')
+    for i, step in enumerate(data.get('steps', [])):
+        print(f'  Step {i+1}: {step.get(\"id\", step.get(\"name\", \"unnamed\"))}')
+"
+# 期待結果:
+#   ✅ 構文OK: 4 steps defined
+#   Step 1: unit-test
+#   Step 2: docker-build
+#   Step 3: docker-push
+#   Step 4: deploy
+
+# 期待出力との差分
+diff hands-on/04-containerization/output/cloudbuild.yaml \
+     hands-on/04-containerization/expected_output/cloudbuild.yaml
+```
+
 ### 💬 議論ポイント
 
 - ブランチ戦略（main / develop / feature）とデプロイ先の対応
@@ -825,7 +1158,7 @@ accounts, contacts, daily_reports, counseling_records
 
 ## Step 5: Docs as Code & クロージング（16:30 – 17:00）
 
-### 5-1. 🤖 ADR（Architecture Decision Record）の自動生成（15分）
+### 5-1. 🤖 ADR（Architecture Decision Record）の自動生成（10分）
 
 本日の議論と生成物を AI に渡し、意思決定を文書化させます。
 
@@ -881,7 +1214,99 @@ Cloud Build のステップ（test → build → push → deploy）を `graph LR
 `hands-on/05-documentation/output/architecture_decision_records.md`
 ````
 
-### 5-2. 今後のロードマップ策定（15分）
+### 5-2. ▶️ 生成した ADR の検証・全 Step 成果物の最終確認（10分）
+
+> [!IMPORTANT]
+> ドキュメントも「生成して終わり」ではありません。**Mermaid 図が正しくレンダリングされるか、ADR の内容が本日の議論と一致しているか** を確認してください。
+
+#### ADR の内容チェック
+
+```bash
+# ADR が生成されたか確認
+cat hands-on/05-documentation/output/architecture_decision_records.md | head -50
+
+# ADR に必須セクションが含まれているか確認
+echo "=== ADR セクションチェック ==="
+for section in "ADR-001" "ADR-002" "ADR-003" "ステータス" "コンテキスト" "決定" "理由" "結果"; do
+  if grep -q "$section" hands-on/05-documentation/output/architecture_decision_records.md; then
+    echo "  ✅ $section: 存在"
+  else
+    echo "  ❌ $section: 欠落"
+  fi
+done
+```
+
+#### Mermaid 図のチェック
+
+```bash
+# Mermaid 図が含まれているか確認
+echo "=== Mermaid 図チェック ==="
+mermaid_count=$(grep -c '```mermaid' hands-on/05-documentation/output/architecture_decision_records.md || true)
+echo "  Mermaid 図の数: ${mermaid_count}（期待: 4つ以上）"
+
+# 各図のタイプを確認
+grep -A1 '```mermaid' hands-on/05-documentation/output/architecture_decision_records.md
+# 期待結果:
+#   graph TD    — アーキテクチャ全体図
+#   graph LR    — CI/CD パイプラインフロー
+#   graph LR    — SFDC → GCP マッピング図
+#   stateDiagram-v2 — ステータス遷移図
+```
+
+> [!TIP]
+> Mermaid 図のレンダリング確認は、GitHub 上で PR を作成するか、
+> VS Code の [Markdown Preview Mermaid Support](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid) 拡張を使うと便利です。
+
+#### 全 Step 成果物の最終確認
+
+```bash
+echo "=========================================="
+echo "🎯 全 Step 成果物チェック"
+echo "=========================================="
+
+# Step 1: スキーマ変換
+echo ""
+echo "--- Step 1: スキーマ変換 ---"
+for f in 01-schema-conversion/output/generated_ddl.sql 01-schema-conversion/output/converted_queries.sql; do
+  [ -f "hands-on/$f" ] && echo "  ✅ $f" || echo "  ❌ $f (missing)"
+done
+
+# Step 2: コード変換
+echo ""
+echo "--- Step 2: コード変換 ---"
+for f in go.mod cmd/server/main.go internal/model/daily_report.go internal/usecase/daily_report.go internal/handler/daily_report.go internal/repository/daily_report.go; do
+  [ -f "hands-on/02-code-modernization/output/generated_go/$f" ] && echo "  ✅ $f" || echo "  ❌ $f (missing)"
+done
+
+# Step 3: テスト
+echo ""
+echo "--- Step 3: テスト ---"
+for f in internal/model/daily_report_test.go internal/usecase/daily_report_test.go internal/handler/daily_report_test.go; do
+  [ -f "hands-on/02-code-modernization/output/generated_go/$f" ] && echo "  ✅ $f" || echo "  ❌ $f (missing)"
+done
+[ -f "hands-on/03-test-generation/output/data_validation.sql" ] && echo "  ✅ data_validation.sql" || echo "  ❌ data_validation.sql (missing)"
+
+# Step 4: コンテナ化
+echo ""
+echo "--- Step 4: コンテナ化 ---"
+for f in 04-containerization/output/Dockerfile 04-containerization/output/cloudbuild.yaml; do
+  [ -f "hands-on/$f" ] && echo "  ✅ $f" || echo "  ❌ $f (missing)"
+done
+
+# Step 5: ドキュメント
+echo ""
+echo "--- Step 5: ドキュメント ---"
+for f in 05-documentation/output/architecture_decision_records.md; do
+  [ -f "hands-on/$f" ] && echo "  ✅ $f" || echo "  ❌ $f (missing)"
+done
+
+echo ""
+echo "=========================================="
+echo "✅ チェック完了"
+echo "=========================================="
+```
+
+### 5-3. 今後のロードマップ策定（10分）
 
 | フェーズ | 期間目安 | 内容 |
 |---------|---------|------|

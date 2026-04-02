@@ -6,9 +6,9 @@
 
 -- 1. フランチャイズ店舗
 INSERT INTO accounts (id, name, store_code, region, open_date, is_active, phone, billing_city, billing_state, last_visit_date) VALUES
-  ('ACC001', '東京渋谷店',   'TK-001', '関東', '2020-04-01', true,  '03-1234-5678', '渋谷区', '東京都',   '2026-03-15'),
-  ('ACC002', '大阪梅田店',   'OS-001', '関西', '2019-10-15', true,  '06-9876-5432', '北区',   '大阪府',   '2026-03-16'),
-  ('ACC003', '名古屋栄店',   'NG-001', '中部', '2021-07-01', true,  '052-111-2222', '中区',   '愛知県',   '2026-03-10'),
+  ('ACC001', '東京渋谷店',   'TK-001', '関東', '2020-04-01', true,  '03-1234-5678', '渋谷区', '東京都',   CURRENT_DATE - INTERVAL '15 days'),
+  ('ACC002', '大阪梅田店',   'OS-001', '関西', '2019-10-15', true,  '06-9876-5432', '北区',   '大阪府',   CURRENT_DATE - INTERVAL '14 days'),
+  ('ACC003', '名古屋栄店',   'NG-001', '中部', '2021-07-01', true,  '052-111-2222', '中区',   '愛知県',   '2026-04-10'),
   ('ACC004', '福岡天神店',   'FK-001', '九州', '2022-01-10', true,  '092-333-4444', '中央区', '福岡県',   '2026-02-28'),
   ('ACC005', '仙台駅前店',   'SD-001', '東北', '2023-03-20', true,  '022-555-6666', '青葉区', '宮城県',   NULL),
   ('ACC006', '札幌すすきの店', 'SP-001', '北海道', '2024-06-01', true, '011-777-8888', '中央区', '北海道', NULL),
@@ -27,43 +27,43 @@ INSERT INTO contacts (id, first_name, last_name, email, phone, title, account_id
 
 -- 3. 業務日報
 INSERT INTO daily_reports (id, name, report_date, supervisor_id, account_id, visit_start_time, visit_end_time, visit_purpose, overall_condition, summary, next_action, status, approved_by, approved_date) VALUES
-  ('DR001', 'DR-0001', '2026-03-15', 'SV001', 'ACC001',
-   '2026-03-15 09:00:00+09', '2026-03-15 12:00:00+09',
+  ('DR001', 'DR-0001', CURRENT_DATE - INTERVAL '15 days', 'SV001', 'ACC001',
+   CURRENT_TIMESTAMP - INTERVAL '15 days', CURRENT_TIMESTAMP - INTERVAL '15 days' + INTERVAL '3 hours',
    '定期巡回', 'A',
    '店舗状態良好。スタッフの接客レベルが向上している。清掃状態も優秀。',
    '次回は新メニュー導入後のオペレーション確認を実施する。',
-   '承認済', 'MGR001', '2026-03-16 10:00:00+09'),
+   '承認済', 'MGR001', CURRENT_TIMESTAMP - INTERVAL '14 days'),
 
-  ('DR002', 'DR-0002', '2026-03-16', 'SV001', 'ACC002',
-   '2026-03-16 13:00:00+09', '2026-03-16 15:30:00+09',
+  ('DR002', 'DR-0002', CURRENT_DATE - INTERVAL '14 days', 'SV001', 'ACC002',
+   CURRENT_TIMESTAMP - INTERVAL '14 days', CURRENT_TIMESTAMP - INTERVAL '14 days' + INTERVAL '2.5 hours',
    '緊急対応', 'C',
    '空調故障の件で訪問。修理業者は翌日対応予定。仮の送風機を設置。',
    '修理完了後に再訪問し、稼働確認を行う。',
-   '提出済', NULL, NULL),
+   '承認済', 'MGR001', CURRENT_TIMESTAMP - INTERVAL '13 days'),
 
-  ('DR003', 'DR-0003', '2026-03-17', 'SV002', 'ACC003',
-   '2026-03-17 10:00:00+09', '2026-03-17 14:00:00+09',
+  ('DR003', 'DR-0003', CURRENT_DATE - INTERVAL '13 days', 'SV002', 'ACC003',
+   CURRENT_TIMESTAMP - INTERVAL '13 days', CURRENT_TIMESTAMP - INTERVAL '13 days' + INTERVAL '4 hours',
    '研修', 'B',
    '新人3名に対するレジ操作研修を実施。2名は合格レベル、1名は追加研修が必要。',
    '1名について来週フォローアップ研修を予定。',
-   '承認済', 'MGR001', '2026-03-18 09:00:00+09'),
+   '承認済', 'MGR001', CURRENT_TIMESTAMP - INTERVAL '12 days'),
 
-  ('DR004', 'DR-0004', '2026-03-20', 'SV001', 'ACC004',
-   '2026-03-20 09:30:00+09', '2026-03-20 11:30:00+09',
+  ('DR004', 'DR-0004', CURRENT_DATE - INTERVAL '10 days', 'SV001', 'ACC004',
+   CURRENT_TIMESTAMP - INTERVAL '10 days', CURRENT_TIMESTAMP - INTERVAL '10 days' + INTERVAL '2 hours',
    '定期巡回', 'B',
    '売上は前月比105%で好調。スタッフのモチベーションも高い。衛生面は一部改善が必要。',
    '衛生管理チェックリストの更新版を送付する。',
-   '承認済', 'MGR002', '2026-03-21 11:00:00+09'),
+   '承認済', 'MGR002', CURRENT_TIMESTAMP - INTERVAL '9 days'),
 
-  ('DR005', 'DR-0005', '2026-03-25', 'SV002', 'ACC001',
-   '2026-03-25 14:00:00+09', '2026-03-25 16:00:00+09',
+  ('DR005', 'DR-0005', CURRENT_DATE, 'SV002', 'ACC001',
+   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '2 hours',
    '監査', 'A',
    '四半期監査を実施。全項目クリア。特に在庫管理の精度が高い。',
    '監査報告書をエリアマネージャーに提出。',
-   '下書き', NULL, NULL),
+   '提出済', NULL, NULL),
 
-  ('DR006', 'DR-0006', '2026-03-28', 'SV001', 'ACC005',
-   '2026-03-28 10:00:00+09', '2026-03-28 13:00:00+09',
+  ('DR006', 'DR-0006', CURRENT_DATE - INTERVAL '2 days', 'SV001', 'ACC005',
+   CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days' + INTERVAL '3 hours',
    '新規オープン支援', 'D',
    '開店準備の進捗確認。設備搬入が遅延しており、オープン日延期の可能性あり。',
    '設備業者と再調整し、スケジュールを立て直す。',
@@ -73,7 +73,7 @@ INSERT INTO daily_reports (id, name, report_date, supervisor_id, account_id, vis
 INSERT INTO counseling_records (id, name, daily_report_id, contact_id, category, detail, duration_minutes, follow_up_required, follow_up_date, follow_up_note) VALUES
   ('CR001', 'CR-0001', 'DR001', 'CON001',
    '業務改善', 'レジ周りのオペレーション効率化を提案。ピーク時の待ち時間を30%短縮する施策を協議。',
-   30, true, '2026-03-22', '改善施策の実施状況を確認する'),
+   30, true, CURRENT_DATE - INTERVAL '8 days', '改善施策の実施状況を確認する'),
 
   ('CR002', 'CR-0002', 'DR001', 'CON002',
    '人材育成', '新人スタッフへのOJT進捗確認。接客マニュアルの理解度テストを実施し、80%以上で合格。',
@@ -81,11 +81,11 @@ INSERT INTO counseling_records (id, name, daily_report_id, contact_id, category,
 
   ('CR003', 'CR-0003', 'DR002', 'CON003',
    'クレーム対応', '先週発生した注文ミスの再発防止策を店長と協議。ダブルチェック体制の導入を決定。',
-   45, true, '2026-03-23', 'ダブルチェック体制の運用状況を確認'),
+   45, true, CURRENT_DATE - INTERVAL '7 days', 'ダブルチェック体制の運用状況を確認'),
 
   ('CR004', 'CR-0004', 'DR003', 'CON005',
    '人材育成', '新人レジ研修：操作手順の確認と実践テスト。2名合格、1名は金額入力に不安あり。',
-   60, true, '2026-03-24', '不合格の1名に追加研修を実施'),
+   60, true, CURRENT_DATE - INTERVAL '6 days', '不合格の1名に追加研修を実施'),
 
   ('CR005', 'CR-0005', 'DR003', 'CON005',
    '衛生管理', '厨房の衛生管理チェック。手洗い場の石鹸補充タイミングと食材保管温度の記録方法を指導。',
@@ -93,7 +93,7 @@ INSERT INTO counseling_records (id, name, daily_report_id, contact_id, category,
 
   ('CR006', 'CR-0006', 'DR004', 'CON006',
    '売上分析', '月次売上レビュー。ランチタイムの客単価が上昇傾向。ディナーの集客施策を検討。',
-   40, true, '2026-04-05', 'ディナー限定キャンペーンの企画書を確認'),
+   40, true, CURRENT_DATE + INTERVAL '5 days', 'ディナー限定キャンペーンの企画書を確認'),
 
   ('CR007', 'CR-0007', 'DR004', 'CON006',
    '衛生管理', '厨房排水口の清掃頻度を週2回から毎日に変更するよう指導。清掃チェックシートを更新。',
