@@ -6,7 +6,7 @@
 
 ## 🛡️ AI ネイティブ移行における品質保証 (QA) アプローチ
 
-<div><video controls src="https://github.com/tyorikan/migration-with-ai/raw/main/hands-on/appendix/ai-native-qa-guide.mp4" muted="false"></video></div>
+<div><video controls src="./appendix/ai-native-qa-guide.mp4" muted="false"></video></div>
 
 AI を活用したモダナイゼーションにおいて、最も重要なのは「生成されたコードの品質と等価性をいかに保証するか（AI への過信を防ぐか）」です。本ハンズオンでは、以下の手順で品質保証を実践に落とし込みます。
 
