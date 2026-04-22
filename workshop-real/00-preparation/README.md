@@ -20,6 +20,33 @@
 - [ ] **主要カスタムオブジェクトの一覧**（名前だけでOK）
   - 例: `DailyReport__c`, `CounselingRecord__c`, `StoreVisit__c` ...
 
+- [ ] **実データのエクスポート**（Step 2 のデータ移行で使用）
+  - 移行対象オブジェクトの CSV をエクスポートしておく
+  - **方法A: sf CLI（推奨 — 手軽で高速）**
+    ```bash
+    # 対象オブジェクトごとに SOQL で CSV エクスポート
+    sf data query --query "SELECT Id, Name, StoreCode__c, StoreName__c, Region__c, Address__c, Phone__c, IsActive__c FROM Store__c" --result-format csv > data/Store__c.csv
+    sf data query --query "SELECT Id, Name, Store__c, VisitDate__c, Status__c, Purpose__c, Summary__c, NextAction__c, Rating__c, Visitor__c, CreatedDate, LastModifiedDate FROM StoreVisit__c" --result-format csv > data/StoreVisit__c.csv
+    sf data query --query "SELECT Id, Name, StoreVisit__c, Category__c, Description__c, DueDate__c, IsCompleted__c, Priority__c FROM VisitDetail__c" --result-format csv > data/VisitDetail__c.csv
+    ```
+  - **方法B: Data Loader（大量データ向け — 数万件以上）**
+    - Salesforce Data Loader を使用し、対象オブジェクトを CSV でエクスポート
+    - 各オブジェクトのフィールドは全選択（漏れ防止）
+  - **方法C: レポートエクスポート（非技術者向け — 最も簡単）**
+    - Salesforce のレポート機能でカスタムレポートを作成し、「エクスポート」→「CSV」
+  - エクスポートした CSV は `data/` フォルダにまとめて Git にコミット
+    ```
+    data/
+    ├── Store__c.csv
+    ├── StoreVisit__c.csv
+    ├── VisitDetail__c.csv
+    └── MonthlyVisitSummary__c.csv  （あれば）
+    ```
+
+  > [!TIP]
+  > CSV のエンコーディングは **UTF-8** にしてください。
+  > Data Loader のデフォルトは Shift-JIS の場合があるので注意。
+
 - [ ] **Claude Code の動作確認**
   ```bash
   # Vertex AI 接続の確認

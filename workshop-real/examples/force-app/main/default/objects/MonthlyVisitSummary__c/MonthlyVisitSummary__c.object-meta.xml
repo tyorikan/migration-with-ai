@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>月次集計サマリー。StoreVisitMonthlyBatch で自動生成される。</description>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <label>月次訪問サマリー</label>
+    <nameField>
+        <displayFormat>MS-{0000}</displayFormat>
+        <label>サマリー番号</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>月次訪問サマリー</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

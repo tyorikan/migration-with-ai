@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DueDate__c</fullName>
+    <description>アクションアイテムの期限日</description>
+    <label>期限日</label>
+    <required>false</required>
+    <type>Date</type>
+</CustomField>

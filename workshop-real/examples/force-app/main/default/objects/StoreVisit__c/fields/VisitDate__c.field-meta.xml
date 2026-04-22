@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>VisitDate__c</fullName>
+    <description>訪問日</description>
+    <label>訪問日</label>
+    <required>true</required>
+    <type>Date</type>
+</CustomField>
