@@ -102,3 +102,29 @@ docker compose down -v
 ```
 
 環境変数: `DB_HOST=db`, `DB_PORT=5432`, `DB_USER=app_user`, `DB_PASSWORD=password`, `DB_NAME=migration_db`
+
+---
+
+## Skills（ドメインナレッジ）
+
+コード生成・変換時は `.claude/skills/` 配下のスキルを参照すること。
+スキルには SFDC 固有の変換ルール、パターン、チェックリストが定義されている。
+
+| スキル | 用途 | 参照タイミング |
+|-------|------|-------------|
+| `sfdc-to-python` | Apex → Python 変換パターン（ガバナ制限、Trigger、共有モデル、Batch、Formula） | Step 3: コードモダナイズ時 |
+| `sfdc-schema-migration` | SFDC → PostgreSQL DDL 変換ルール（命名規則、型マッピング、データ移行） | Step 2: スキーマ変換時 |
+| `reverse-engineering` | SFDC ソースコードからの設計書逆起こしルール | Step 1: 逆起こし時 |
+| `tdd-modernize` | Apex テスト → pytest 変換 + TDD ワークフロー | Step 3: テスト駆動開発時 |
+
+## Agents（特化型エージェント）
+
+各 Step で使用する特化型エージェントが `.claude/agents/` に定義されている。
+
+| エージェント | 役割 | 使用 Step |
+|------------|------|----------|
+| `sfdc-analyzer` | SFDX プロジェクト分析 → 設計書自動生成 | Step 1 |
+| `schema-converter` | DDL 生成 + データ移行スクリプト生成 | Step 2 |
+| `python-modernizer` | TDD で Apex → Python/FastAPI 変換 | Step 3 |
+| `migration-reviewer` | 品質レビュー + Step 間整合性検証 | Step 4-5 + 各 Step 完了時 |
+
