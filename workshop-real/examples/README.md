@@ -29,14 +29,21 @@ Draft → Submitted → Approved
 
 ## ファイル一覧
 
-### Apex クラス（6ファイル）
-| ファイル | 種別 | 責務 |
-|---------|------|------|
-| `StoreVisitController.cls` | REST API | GET/POST/PATCH/DELETE エンドポイント |
-| `StoreVisitService.cls` | Service | ビジネスロジック、ステータス遷移制御 |
-| `StoreVisitTriggerHandler.cls` | Trigger Handler | 副作用（最終訪問日更新、承認通知メール、平均評価再計算） |
-| `StoreVisitMonthlyBatch.cls` | Batch | 月次集計（訪問回数、平均評価、未完了アクション数） |
-| `StoreVisitScheduler.cls` | Scheduler | 月次バッチのスケジューラー（毎月1日 AM 2:00） |
+### Apex クラス（7クラス: 実装5 + テスト2）
+
+| クラス | 種別 | 責務 |
+|--------|------|------|
+| `StoreVisitController` | REST API | 訪問記録の CRUD エンドポイント |
+| `StoreVisitService` | Service | ステータス遷移、バリデーション、検索 |
+| `StoreVisitTriggerHandler` | Trigger Handler | 訪問記録更新時の副作用処理（平均評価計算、最終訪問日更新） |
+| `StoreVisitMonthlyBatch` | Batch | 月次集計処理（訪問回数、平均評価、未完了アクション数） |
+| `StoreVisitScheduler` | Scheduler | 月次バッチのスケジュール登録 |
+| `StoreVisitControllerTest` | **Test** | Controller の CRUD + ステータス遷移 + バリデーション検証（14テストメソッド） |
+| `StoreVisitServiceTest` | **Test** | Service のステータス遷移ルール + Trigger 連動 + 境界値検証（12テストメソッド） |
+
+> [!TIP]
+> テストクラスの `System.assertEquals()` / `System.assert()` は **SFDC 上の期待動作そのもの**。
+> Step 3 の `/project:extract-test-scenarios` で、これらの assert を移行先 pytest のテストシナリオに自動変換できます。
 
 ### Apex トリガー（1ファイル）
 | ファイル | 対象オブジェクト | イベント |

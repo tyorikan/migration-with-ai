@@ -63,11 +63,11 @@ PostgreSQL 用の DDL（CREATE TABLE 文）を生成してください。
 
 # 追加生成物
 DDL に加えて、以下も生成してください：
-1. **シードデータ SQL**: 各テーブルに 5-10 件のテストデータを INSERT
-2. **データ整合性検証 SQL**: レコード件数チェック、孤立レコードチェック、NULL チェック
+1. **データ整合性検証 SQL**: レコード件数チェック、孤立レコードチェック、NULL チェック、Picklist 値妥当性チェック
+
+※ 実データの投入は `/import-data` コマンドで別途行います。シードデータの生成は不要です。
 
 # 出力先
 - DDL: `workshop-real/02-schema-migration/output/generated_ddl.sql`
-- シードデータ: `workshop-real/02-schema-migration/output/seed_data.sql`
 - 検証 SQL: `workshop-real/02-schema-migration/output/data_validation.sql`
 ```

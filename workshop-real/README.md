@@ -114,15 +114,27 @@ docker compose down -v
 ```
 workshop-real/
 ├── README.md                          ← 📖 本ドキュメント
+├── CLAUDE.md                          ← 🧠 Claude Code プロジェクトルール（自動読み込み）
 ├── docker-compose.yml                 ← 🐳 統合環境定義
+├── .claude/commands/                  ← ⚡ カスタム Slash Commands
+│   ├── reverse-engineer.md            ←   /reverse-engineer（Step 1）
+│   ├── assess-migration.md            ←   /assess-migration（Step 1）
+│   ├── schema-convert.md              ←   /schema-convert（Step 2）
+│   ├── import-data.md                 ←   /import-data（Step 2）
+│   ├── extract-test-scenarios.md      ←   /extract-test-scenarios（Step 3）
+│   ├── generate-and-implement.md      ←   /generate-and-implement（Step 3）
+│   └── generate-adr.md               ←   /generate-adr（Step 5）
+├── scripts/
+│   └── check-progress.sh             ← 📊 進行チェックスクリプト
+├── data/                              ← 📂 SFDC エクスポート CSV 置き場
 ├── 00-preparation/
 │   └── README.md                      ← 事前準備チェックリスト
 ├── 01-reverse-engineering/
 │   ├── README.md                      ← 🔑 AI 設計逆起こしガイド
 │   └── output/                        ← システム概要書、ER図、API仕様、影響分析
 ├── 02-schema-migration/
-│   ├── README.md                      ← DB スキーマ移行設計ガイド
-│   └── output/                        ← DDL、変換 SQL、シードデータ
+│   ├── README.md                      ← DB スキーマ移行 + 実データ投入ガイド
+│   └── output/                        ← DDL、データ変換スクリプト、検証 SQL
 ├── 03-code-modernization/
 │   ├── README.md                      ← TDD コードモダナイズ PoC ガイド
 │   └── output/                        ← Python プロジェクト + Dockerfile
@@ -132,25 +144,40 @@ workshop-real/
 ├── 05-roadmap/
 │   ├── README.md                      ← 移行ロードマップ策定
 │   └── output/                        ← ADR、ロードマップ
+├── examples/                          ← サンプル SFDX プロジェクト（検証用）
 └── templates/                         ← AI プロンプトテンプレート集
-    ├── reverse-engineering-prompt.md
-    ├── migration-assessment-prompt.md
-    ├── schema-conversion-prompt.md
-    └── code-modernization-prompt.md
 ```
+
+---
+
+## ⚡ カスタム Slash Commands
+
+> [!TIP]
+> 各 Step のプロンプトをコピペする代わりに、**ワンコマンドで実行**できます。
+> Claude Code の対話モードで `/project:` に続けてコマンド名を入力してください。
+
+| Step | コマンド | 内容 |
+|------|---------|------|
+| 1 | `/project:reverse-engineer` | ソースコードから設計ドキュメントを逆起こし |
+| 1 | `/project:assess-migration` | 移行影響分析レポートを生成 |
+| 2 | `/project:schema-convert` | SFDC メタデータ → PostgreSQL DDL 変換 |
+| 2 | `/project:import-data` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
+| 3 | `/project:extract-test-scenarios` | Apex からテストシナリオを抽出 |
+| 3 | `/project:generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
+| 5 | `/project:generate-adr` | ADR（技術選定の意思決定記録）を自動生成 |
 
 ---
 
 ## 🔗 各 Step の詳細
 
-| Step | ドキュメント | 主なプロンプトテンプレート |
-|------|-------------|------------------------|
-| 0 | [事前準備＆キックオフ](./00-preparation/README.md) | — |
-| 1 | [AI 設計逆起こし](./01-reverse-engineering/README.md) | [逆起こし](./templates/reverse-engineering-prompt.md) / [影響分析](./templates/migration-assessment-prompt.md) |
-| 2 | [DB スキーマ移行設計](./02-schema-migration/README.md) | [DDL 変換](./templates/schema-conversion-prompt.md) |
-| 3 | [TDD コードモダナイズ](./03-code-modernization/README.md) | [コード変換](./templates/code-modernization-prompt.md) |
-| 4 | [品質評価＆デリバリー](./04-quality-and-delivery/README.md) | — |
-| 5 | [移行ロードマップ](./05-roadmap/README.md) | — |
+| Step | ドキュメント | Slash Command | 主なテンプレート |
+|------|-------------|--------------|----------------|
+| 0 | [事前準備＆キックオフ](./00-preparation/README.md) | — | — |
+| 1 | [AI 設計逆起こし](./01-reverse-engineering/README.md) | `/project:reverse-engineer` | [逆起こし](./templates/reverse-engineering-prompt.md) |
+| 2 | [DB スキーマ移行](./02-schema-migration/README.md) | `/project:schema-convert` | [DDL 変換](./templates/schema-conversion-prompt.md) |
+| 3 | [TDD コードモダナイズ](./03-code-modernization/README.md) | `/project:generate-and-implement` | [コード変換](./templates/code-modernization-prompt.md) |
+| 4 | [品質評価＆デリバリー](./04-quality-and-delivery/README.md) | — | — |
+| 5 | [移行ロードマップ](./05-roadmap/README.md) | `/project:generate-adr` | — |
 
 ---
 
