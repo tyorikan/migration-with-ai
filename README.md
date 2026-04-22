@@ -4,6 +4,18 @@
 
 本ワークショップは以下の6つのセクションで構成されており、各ディレクトリに必要な手順とサンプルアセットが含まれています。
 
+### 📌 ワークショップ（実践）
+
+- **[workshop-real](./workshop-real/README.md)** 🆕
+   * お客様の実 SFDC コードを使い、Claude Code（via Vertex AI）で設計逆起こし → TDD コード変換 → docker-compose 検証まで1日で行う実践ワークショップ。
+
+### 📌 ハンズオン（サンプルアプリ）
+
+- **[hands-on](./hands-on/README.md)**
+   * サンプルアプリ（業務日報システム）を使い、AI ネイティブ移行の全 Step を体験するハンズオン。
+
+### 📚 リファレンスドキュメント
+
 1. **[1-onboarding](./1-onboarding/README.md)**
    * Google Cloud プロジェクトのセットアップ、課金設定、必要な API の有効化など、環境構築の基礎を学びます。
 2. **[2-database-migration](./2-database-migration/README.md)**

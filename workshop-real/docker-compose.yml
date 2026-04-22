@@ -1,0 +1,50 @@
+services:
+  # -------------------------------------------------------
+  # 🐘 PostgreSQL — 移行先 DB
+  # -------------------------------------------------------
+  db:
+    image: postgres:16
+    container_name: sfdc-migration-db
+    environment:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: migration_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # ワークショップのディレクトリをマウント（SQL を直接実行可能に）
+      - .:/workspace:ro
+      # データ永続化
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d migration_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # -------------------------------------------------------
+  # 🐍 FastAPI App — 移行後アプリケーション
+  # -------------------------------------------------------
+  # Step 3 でコード生成後に有効化
+  app:
+    build:
+      context: ./03-code-modernization/output
+      dockerfile: Dockerfile
+    container_name: sfdc-migration-app
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: app_user
+      DB_PASSWORD: password
+      DB_NAME: migration_db
+    depends_on:
+      db:
+        condition: service_healthy
+    # ソースコードをマウント（開発時のホットリロード用）
+    volumes:
+      - ./03-code-modernization/output:/app:ro
+
+volumes:
+  pgdata:
