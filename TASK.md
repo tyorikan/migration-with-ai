@@ -54,7 +54,7 @@ graph LR
 ## Phase 0: オンボーディング（環境準備）
 
 > **ゴール:** 参加者全員が Google Cloud 上で自信を持って作業を開始できる状態にする
-> 📄 [`1-onboarding/`](./1-onboarding/README.md)
+> 📄 [`1-onboarding/`](./references/1-onboarding/README.md)
 
 ### 0.1 Google Cloud 基礎知識の習得
 - [ ] 0.1.1 Google Cloud のリソース階層（組織 > フォルダ > プロジェクト）を理解する
@@ -64,12 +64,12 @@ graph LR
   - Cloud SQL / AlloyDB（データベース）
   - Gemini for Google Cloud / Vertex AI（AI）
   - Cloud Build（CI/CD）
-  - 📄 [`01_gcp_fundamentals.md`](./1-onboarding/01_gcp_fundamentals.md)
+  - 📄 [`01_gcp_fundamentals.md`](./references/1-onboarding/01_gcp_fundamentals.md)
 
 ### 0.2 ローカル環境のセットアップ
 - [ ] 0.2.1 必要ツールのインストールと確認
   - `gcloud` CLI / `terraform` / `git` / VS Code / Docker
-  - 📄 [`02_prerequisites.md`](./1-onboarding/02_prerequisites.md)
+  - 📄 [`02_prerequisites.md`](./references/1-onboarding/02_prerequisites.md)
 - [ ] 0.2.2 `check_env.sh` を実行し、環境が正常であることを確認する
   - ✅ スクリプトが全チェック項目で `PASS` を返すこと
 
@@ -77,14 +77,14 @@ graph LR
 - [ ] 0.3.1 検証用プロジェクトを作成し、課金アカウントを紐付ける
 - [ ] 0.3.2 必要な API を有効化する（`sqladmin`, `run`, `cloudbuild`, `aiplatform` 等）
 - [ ] 0.3.3 基本的な VPC ネットワークを作成する
-  - 📄 [`03_environment_setup.md`](./1-onboarding/03_environment_setup.md)
+  - 📄 [`03_environment_setup.md`](./references/1-onboarding/03_environment_setup.md)
   - ✅ `gcloud services list --enabled` で対象 API が表示されること
 
 ### 0.4 Gemini の利用準備
 - [ ] 0.4.1 Cloud コンソール上の Gemini チャットの動作を確認する
 - [ ] 0.4.2 VS Code に Gemini Code Assist 拡張機能をインストールし、動作を確認する
 - [ ] 0.4.3 移行作業向けの効果的なプロンプトテンプレートを把握する
-  - 📄 [`04_gemini_usage_guide.md`](./1-onboarding/04_gemini_usage_guide.md)
+  - 📄 [`04_gemini_usage_guide.md`](./references/1-onboarding/04_gemini_usage_guide.md)
   - ✅ Gemini にサンプルプロンプトを投げて応答が返ること
 
 ---
@@ -92,7 +92,7 @@ graph LR
 ## Phase 1: アセスメントとインフラ基盤の構築
 
 > **ゴール:** SFDC の現状を正確に把握し、移行先の Google Cloud インフラを IaC で構築する
-> 📄 [`4-infra-pipeline/`](./4-infra-pipeline/README.md)
+> 📄 [`4-infra-pipeline/`](./references/4-infra-pipeline/README.md)
 
 ### フェーズ内フロー
 
@@ -125,10 +125,10 @@ flowchart TD
 - [ ] 1.2.1 移行パターンを比較検討する
   - ⚠️ リフト＆シフト / モダナイズ / 段階的移行のメリット・デメリットを評価
 - [ ] 1.2.2 データベースエンジンを選定する（Cloud SQL vs AlloyDB）
-  - 📄 [`2-database-migration/01_migration_strategy.md`](./2-database-migration/01_migration_strategy.md)
-  - 📄 [`5-documentation/docs/architecture/adr-001-database-engine-selection.md`](./5-documentation/docs/architecture/adr-001-database-engine-selection.md)
+  - 📄 [`2-database-migration/01_migration_strategy.md`](./references/2-database-migration/01_migration_strategy.md)
+  - 📄 [`5-documentation/docs/architecture/adr-001-database-engine-selection.md`](./references/5-documentation/docs/architecture/adr-001-database-engine-selection.md)
 - [ ] 1.2.3 コンピュート基盤を選定する（Cloud Run vs GKE Autopilot）
-  - 📄 [`3-app-modernization/README.md`](./3-app-modernization/README.md) の選定フローチャートを参照
+  - 📄 [`3-app-modernization/README.md`](./references/3-app-modernization/README.md) の選定フローチャートを参照
 - [ ] 1.2.4 データ移行方式を選定する
   - ⚠️ 一括ロード（ビッグバン）vs 継続的レプリケーション（CDC）
   - ✅ ADR（Architecture Decision Record）が起票され、選定理由が記録されている
@@ -139,8 +139,8 @@ flowchart TD
 - [ ] 1.3.3 `variables.tf` をお客様環境に合わせてカスタマイズする
   - リージョン / プロジェクト ID / マシンタイプ 等
 - [ ] 1.3.4 tfstate のリモートバックエンド（GCS バケット）を構成する
-  - 📄 [`01_terraform_foundation.md`](./4-infra-pipeline/01_terraform_foundation.md)
-  - 📄 サンプル: [`sample/terraform/`](./4-infra-pipeline/sample/terraform/)
+  - 📄 [`01_terraform_foundation.md`](./references/4-infra-pipeline/01_terraform_foundation.md)
+  - 📄 サンプル: [`sample/terraform/`](./references/4-infra-pipeline/sample/terraform/)
 
 ### 1.4 インフラリソースの構築
 - [ ] 1.4.1 `terraform init` で初期化する
@@ -159,7 +159,7 @@ flowchart TD
 - [ ] 1.6.1 Terraform コードを Gemini に入力し、Mermaid 形式のアーキテクチャ図を生成する
 - [ ] 1.6.2 生成された図が実際のリソースと一致しているかレビューする
 - [ ] 1.6.3 インフラ構成概要ドキュメントとして確定する
-  - 📄 [`5-documentation/01_ai_doc_generation.md`](./5-documentation/01_ai_doc_generation.md)
+  - 📄 [`5-documentation/01_ai_doc_generation.md`](./references/5-documentation/01_ai_doc_generation.md)
   - ✅ Mermaid アーキテクチャ図 + 構成概要ドキュメントがリポジトリにコミットされている
 
 ---
@@ -167,7 +167,7 @@ flowchart TD
 ## Phase 2: AI によるデータベーススキーマ（DDL）の自動変換
 
 > **ゴール:** SFDC のオブジェクトメタデータから、PostgreSQL 用の DDL を AI で生成し、Cloud SQL 上にテーブルを作成する
-> 📄 [`2-database-migration/`](./2-database-migration/README.md)
+> 📄 [`2-database-migration/`](./references/2-database-migration/README.md)
 
 ### フェーズ内フロー
 
@@ -186,7 +186,7 @@ flowchart TD
 ### 2.1 SFDC メタデータの抽出
 - [ ] 2.1.1 SFDC の Metadata API / Describe API を使用し、対象オブジェクトのスキーマ情報を JSON で取得する
 - [ ] 2.1.2 取得した JSON を `2-database-migration/scripts/` 配下に保存する
-  - 参考: [`sample_sfdc_schema.json`](./2-database-migration/scripts/sample_sfdc_schema.json)
+  - 参考: [`sample_sfdc_schema.json`](./references/2-database-migration/scripts/sample_sfdc_schema.json)
   - ✅ 全移行対象オブジェクトの JSON メタデータが取得済み
 
 ### 2.2 型マッピングと命名規則の設計
@@ -206,19 +206,19 @@ flowchart TD
 
 - [ ] 2.2.2 命名規則を決定する（CamelCase → snake_case、`__c` サフィックスの除去）
 - [ ] 2.2.3 インデックス戦略を定義する（外部キー列、検索頻度の高い列）
-  - 📄 [`02_schema_design.md`](./2-database-migration/02_schema_design.md)
+  - 📄 [`02_schema_design.md`](./references/2-database-migration/02_schema_design.md)
   - ✅ 型マッピング表と命名規則ドキュメントが確定
 
 ### 2.3 DDL 生成プロンプトの作成
 - [ ] 2.3.1 DDL 変換ルール（2.2 で定義）をプロンプトに反映する
 - [ ] 2.3.2 Few-Shot 例として、期待する DDL 出力のサンプルをプロンプトに含める
 - [ ] 2.3.3 COMMENT 文の自動付与ルールをプロンプトに含める
-  - 📄 [`03_ai_conversion_guide.md`](./2-database-migration/03_ai_conversion_guide.md) のプロンプトテンプレート参照
+  - 📄 [`03_ai_conversion_guide.md`](./references/2-database-migration/03_ai_conversion_guide.md) のプロンプトテンプレート参照
 
 ### 2.4 🤖 Gemini による DDL 自動生成
 - [ ] 2.4.1 手動確認: Gemini チャットにプロンプト + JSON メタデータを渡し、DDL を生成する
 - [ ] 2.4.2 一括処理: `gemini_ddl_generator.py` スクリプトで Google Gen AI SDK 経由で全オブジェクトの DDL を一括生成する
-  - 📄 [`scripts/README.md`](./2-database-migration/scripts/README.md)
+  - 📄 [`scripts/README.md`](./references/2-database-migration/scripts/README.md)
   - ✅ `output_generated.sql` が生成されている
 
 ### 2.5 生成された DDL のレビュー
@@ -238,7 +238,7 @@ flowchart TD
 
 ### 2.7 データマッピング仕様書の作成
 - [ ] 2.7.1 🤖 Gemini にメタデータと DDL を渡し、データマッピング仕様書のドラフトを生成する
-  - 📄 テンプレート: [`data-mapping-template.md`](./5-documentation/docs/templates/data-mapping-template.md)
+  - 📄 テンプレート: [`data-mapping-template.md`](./references/5-documentation/docs/templates/data-mapping-template.md)
 - [ ] 2.7.2 生成されたドラフトをレビューし、確定版としてコミットする
   - ✅ データマッピング仕様書がリポジトリにコミットされている
 
@@ -247,7 +247,7 @@ flowchart TD
 ## Phase 3: AI によるクエリ変換（SOQL → SQL）
 
 > **ゴール:** SFDC アプリ内の SOQL を、PostgreSQL 用の標準 SQL + インデックスに変換する
-> 📄 [`2-database-migration/03_ai_conversion_guide.md`](./2-database-migration/03_ai_conversion_guide.md)
+> 📄 [`2-database-migration/03_ai_conversion_guide.md`](./references/2-database-migration/03_ai_conversion_guide.md)
 
 ### 3.1 SOQL の棚卸し
 - [ ] 3.1.1 SFDC アプリのソースコード（Apex クラス / Trigger / Batch）から全 SOQL を抽出する
@@ -288,7 +288,7 @@ flowchart TD
 ## Phase 4: アプリケーションのモダナイズ
 
 > **ゴール:** SFDC 上のビジネスロジック（Apex 等）をモダンな言語に AI で変換し、コンテナとしてデプロイ可能な状態にする
-> 📄 [`3-app-modernization/`](./3-app-modernization/README.md)
+> 📄 [`3-app-modernization/`](./references/3-app-modernization/README.md)
 
 ### フェーズ内フロー
 
@@ -318,7 +318,7 @@ flowchart TD
   | Visualforce | 静的ホスティング / Next.js on Cloud Run |
   | Workflow / Flow | Workflows / Eventarc |
 
-  - 📄 [`01_architecture_redesign.md`](./3-app-modernization/01_architecture_redesign.md)
+  - 📄 [`01_architecture_redesign.md`](./references/3-app-modernization/01_architecture_redesign.md)
   - ✅ コンポーネントマッピング表が確定
 
 ### 4.2 🤖 Gemini による Apex → モダン言語のコード変換
@@ -327,7 +327,7 @@ flowchart TD
 - [ ] 4.2.2 **パターン 2: Apex Trigger** を Pub/Sub + Cloud Run ワーカーに変換する
   - イベント駆動設計のプロンプトを使用
 - [ ] 4.2.3 **パターン 3: Batch Apex** を Cloud Run Jobs 向けの CLIアプリに変換する
-  - 📄 [`02_ai_code_conversion.md`](./3-app-modernization/02_ai_code_conversion.md)
+  - 📄 [`02_ai_code_conversion.md`](./references/3-app-modernization/02_ai_code_conversion.md)
   - ✅ 全対象 Apex のモダン言語への変換コードが生成されている
 
 ### 4.3 変換コードのレビュー
@@ -343,15 +343,15 @@ flowchart TD
 - [ ] 4.4.1 マルチステージビルドの `Dockerfile` を作成する
 - [ ] 4.4.2 非 root ユーザーで実行される設定にする
 - [ ] 4.4.3 `docker build` + `docker run` でローカル動作を確認する
-  - 📄 [`03_containerization.md`](./3-app-modernization/03_containerization.md)
+  - 📄 [`03_containerization.md`](./references/3-app-modernization/03_containerization.md)
   - ✅ ローカルでコンテナが起動しヘルスチェックに応答する
 
 ### 4.5 Google Cloud へのデプロイ
 - [ ] 4.5.1 Artifact Registry にコンテナイメージを Push する
 - [ ] 4.5.2 **[Cloud Run の場合]** `gcloud run deploy` でサービスをデプロイする
-  - 📄 [`04_cloud_run_deployment.md`](./3-app-modernization/04_cloud_run_deployment.md)
+  - 📄 [`04_cloud_run_deployment.md`](./references/3-app-modernization/04_cloud_run_deployment.md)
 - [ ] 4.5.3 **[GKE Autopilot の場合]** Kubernetes マニフェストを作成し、`kubectl apply` でデプロイする
-  - 📄 [`05_gke_autopilot_deployment.md`](./3-app-modernization/05_gke_autopilot_deployment.md)
+  - 📄 [`05_gke_autopilot_deployment.md`](./references/3-app-modernization/05_gke_autopilot_deployment.md)
 - [ ] 4.5.4 Cloud SQL Auth Proxy / Private IP 経由でのDB接続を設定する
   - ✅ サービスがデプロイされ、外部からのリクエストにレスポンスを返す
 
@@ -366,7 +366,7 @@ flowchart TD
 ## Phase 5: データ移行とデプロイパイプライン
 
 > **ゴール:** SFDC の実データを Cloud SQL にロードし、CI/CD パイプラインを整備する
-> 📄 [`2-database-migration/04_data_export_and_load.md`](./2-database-migration/04_data_export_and_load.md), [`4-infra-pipeline/02_ci_cd_architecture.md`](./4-infra-pipeline/02_ci_cd_architecture.md)
+> 📄 [`2-database-migration/04_data_export_and_load.md`](./references/2-database-migration/04_data_export_and_load.md), [`4-infra-pipeline/02_ci_cd_architecture.md`](./references/4-infra-pipeline/02_ci_cd_architecture.md)
 
 ### 5.1 データエクスポート
 - [ ] 5.1.1 SFDC Data Loader / Bulk API で対象オブジェクトのデータを CSV でエクスポートする
@@ -384,9 +384,9 @@ flowchart TD
 - [ ] 5.3.1 Cloud Build トリガーを設定する（GitHub / Cloud Source Repositories 連携）
 - [ ] 5.3.2 `cloudbuild.yaml` にテスト → ビルド → デプロイのステップを定義する
 - [ ] 5.3.3 DB マイグレーション用 Cloud Build パイプラインを整備する
-  - 📄 [`cloudbuild-db-migration.yaml`](./4-infra-pipeline/sample/cloudbuild/cloudbuild-db-migration.yaml)
+  - 📄 [`cloudbuild-db-migration.yaml`](./references/4-infra-pipeline/sample/cloudbuild/cloudbuild-db-migration.yaml)
 - [ ] 5.3.4 🤖 Gemini を使って `cloudbuild.yaml` のトラブルシューティングや最適化を行う
-  - 📄 [`03_gemini_assisted_iac.md`](./4-infra-pipeline/03_gemini_assisted_iac.md)
+  - 📄 [`03_gemini_assisted_iac.md`](./references/4-infra-pipeline/03_gemini_assisted_iac.md)
   - ✅ `git push` をトリガーに自動ビルド・デプロイが実行される
 
 ---
@@ -394,7 +394,7 @@ flowchart TD
 ## Phase 6: テスト検証とカットオーバー判定
 
 > **ゴール:** データ整合性・アプリ動作を検証し、カットオーバーの Go / No-Go 判定を行う
-> 📄 [`6-testing/`](./6-testing/README.md)
+> 📄 [`6-testing/`](./references/6-testing/README.md)
 
 ### テスト戦略の全体像
 
@@ -420,15 +420,15 @@ graph TB
   - テーブルドリブンテスト形式 / gomock によるモック / 正常系・異常系を指示
 - [ ] 6.1.2 生成されたテストをプロジェクトに配置し、`go test ./... -v` で実行する
 - [ ] 6.1.3 テストカバレッジを確認する（目標: 主要ロジックの 80% 以上）
-  - 📄 サンプル: [`sample/account_handler_test.go`](./6-testing/sample/account_handler_test.go)
+  - 📄 サンプル: [`sample/account_handler_test.go`](./references/6-testing/sample/account_handler_test.go)
   - ✅ 全テストが PASS、カバレッジ目標をクリア
 
 ### 6.2 統合テスト（Testcontainers）
 - [ ] 6.2.1 Testcontainers で PostgreSQL コンテナを起動するテストコードを作成する
 - [ ] 6.2.2 DDL の適用 → テストデータ投入 → CRUD 操作 → 検証 のサイクルをテストする
 - [ ] 6.2.3 CI パイプライン（Cloud Build）に統合テストステップを追加する
-  - 📄 サンプル: [`sample/integration_test.go`](./6-testing/sample/integration_test.go)
-  - 📄 [`03_ci_test_integration.md`](./6-testing/03_ci_test_integration.md)
+  - 📄 サンプル: [`sample/integration_test.go`](./references/6-testing/sample/integration_test.go)
+  - 📄 [`03_ci_test_integration.md`](./references/6-testing/03_ci_test_integration.md)
   - ✅ CI 上で統合テストが自動実行される
 
 ### 6.3 データ整合性検証
@@ -437,7 +437,7 @@ graph TB
 - [ ] 6.3.3 **参照整合性の検証**: 孤立レコード（外部キー先が存在しないレコード）がないか確認する
 - [ ] 6.3.4 **データ内容のサンプリング検証**: ランダムに N 件抽出し、値が一致するか確認する
 - [ ] 6.3.5 **文字化け / エンコーディングの確認**: マルチバイト文字が正しく格納されているか確認する
-  - 📄 サンプル: [`sample/data_validation_test.go`](./6-testing/sample/data_validation_test.go)
+  - 📄 サンプル: [`sample/data_validation_test.go`](./references/6-testing/sample/data_validation_test.go)
   - ✅ 全検証項目で合格（件数一致率 100%、孤立レコード 0 件）
 
 ### 6.4 カットオーバー判定
@@ -462,24 +462,24 @@ graph TB
 ## Phase 7: ドキュメント整備とナレッジ共有（全フェーズ並行）
 
 > **ゴール:** 各フェーズの成果物と意思決定をドキュメント化し、移行後も参照可能な状態にする
-> 📄 [`5-documentation/`](./5-documentation/README.md)
+> 📄 [`5-documentation/`](./references/5-documentation/README.md)
 
 ### 7.1 設計ドキュメント
 - [ ] 7.1.1 🤖 Gemini でシステム構成図（Mermaid）を生成・更新する
 - [ ] 7.1.2 🤖 Gemini で API 仕様書（OpenAPI / README）を生成する
 - [ ] 7.1.3 データマッピング仕様書を最終化する
-  - 📄 [`data-mapping-template.md`](./5-documentation/docs/templates/data-mapping-template.md)
+  - 📄 [`data-mapping-template.md`](./references/5-documentation/docs/templates/data-mapping-template.md)
 
 ### 7.2 ADR（Architecture Decision Record）
 - [ ] 7.2.1 DB エンジン選定の ADR を作成する（Cloud SQL vs AlloyDB）
 - [ ] 7.2.2 コンピュート選定の ADR を作成する（Cloud Run vs GKE）
 - [ ] 7.2.3 データ移行方式の ADR を作成する（ビッグバン vs CDC）
-  - 📄 テンプレート: [`adr-template.md`](./5-documentation/docs/architecture/adr-template.md)
-  - 📄 サンプル: [`adr-001-database-engine-selection.md`](./5-documentation/docs/architecture/adr-001-database-engine-selection.md)
+  - 📄 テンプレート: [`adr-template.md`](./references/5-documentation/docs/architecture/adr-template.md)
+  - 📄 サンプル: [`adr-001-database-engine-selection.md`](./references/5-documentation/docs/architecture/adr-001-database-engine-selection.md)
 
 ### 7.3 運用・移行ドキュメント
 - [ ] 7.3.1 移行チェックリストを完成させる
-  - 📄 [`migration-checklist.md`](./5-documentation/docs/templates/migration-checklist.md)
+  - 📄 [`migration-checklist.md`](./references/5-documentation/docs/templates/migration-checklist.md)
 - [ ] 7.3.2 データエクスポート・インポート手順書を作成する
 - [ ] 7.3.3 アプリケーションデプロイ手順書を作成する
 - [ ] 7.3.4 カットオーバー手順書とロールバック手順書を作成する
@@ -487,9 +487,9 @@ graph TB
 
 ### 7.4 ナレッジ共有
 - [ ] 7.4.1 効果的だった Gemini プロンプトをプロンプトカタログとしてまとめる
-  - 📄 [`tools/generate-docs-prompt.md`](./5-documentation/tools/generate-docs-prompt.md)
+  - 📄 [`tools/generate-docs-prompt.md`](./references/5-documentation/tools/generate-docs-prompt.md)
 - [ ] 7.4.2 Docs as Code の仕組み（MkDocs / Hugo 等での静的サイト生成）を構築する
-  - 📄 [`03_maintenance_strategy.md`](./5-documentation/03_maintenance_strategy.md)
+  - 📄 [`03_maintenance_strategy.md`](./references/5-documentation/03_maintenance_strategy.md)
   - ✅ 全ドキュメントがリポジトリにコミットされ、チーム全員がアクセス可能
 
 ---
@@ -526,9 +526,9 @@ mindmap
 
 | フェーズ | ディレクトリ | 主なドキュメント |
 |----------|-------------|------------------|
-| オンボーディング | [`1-onboarding/`](./1-onboarding/) | 環境構築, Gemini ガイド |
-| DB 移行 | [`2-database-migration/`](./2-database-migration/) | 戦略, スキーマ設計, AI 変換 |
-| アプリモダナイズ | [`3-app-modernization/`](./3-app-modernization/) | 再設計, コード変換, コンテナ化 |
-| インフラ / CI/CD | [`4-infra-pipeline/`](./4-infra-pipeline/) | Terraform, Cloud Build |
-| ドキュメント | [`5-documentation/`](./5-documentation/) | AI ドキュメント生成, ADR |
-| テスト | [`6-testing/`](./6-testing/) | テスト戦略, AI テスト生成 |
+| オンボーディング | [`1-onboarding/`](./references/1-onboarding/) | 環境構築, Gemini ガイド |
+| DB 移行 | [`2-database-migration/`](./references/2-database-migration/) | 戦略, スキーマ設計, AI 変換 |
+| アプリモダナイズ | [`3-app-modernization/`](./references/3-app-modernization/) | 再設計, コード変換, コンテナ化 |
+| インフラ / CI/CD | [`4-infra-pipeline/`](./references/4-infra-pipeline/) | Terraform, Cloud Build |
+| ドキュメント | [`5-documentation/`](./references/5-documentation/) | AI ドキュメント生成, ADR |
+| テスト | [`6-testing/`](./references/6-testing/) | テスト戦略, AI テスト生成 |
