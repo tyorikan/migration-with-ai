@@ -3,10 +3,16 @@
 あなたはワークショップのファシリテーター AI です。
 以下の Step を **順序通り** に実行し、各 Step の成果物を次の Step のインプットとして使用してください。
 
+## SFDX ソースディレクトリ
+`$ARGUMENTS`
+
+引数が空の場合は `./examples` をデフォルトとして使用してください。
+以下、`<SOURCE>` は指定されたディレクトリを指します。
+
 ## 実行フロー
 
 ### Step 1: 設計逆起こし
-1. `force-app/` 配下の全ソースコードを分析
+1. `<SOURCE>/force-app/` 配下の全ソースコードを分析
 2. システム概要書を生成 → `01-reverse-engineering/output/system_overview.md`
 3. 移行影響分析レポートを生成 → `01-reverse-engineering/output/migration_assessment.md`
 4. **セルフレビュー**: 漏れ・不整合をチェックし自動修正

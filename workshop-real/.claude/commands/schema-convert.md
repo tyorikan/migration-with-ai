@@ -1,8 +1,14 @@
 Step 2: SFDC メタデータ → PostgreSQL DDL 変換
 
+## SFDX ソースディレクトリ
+`$ARGUMENTS`
+
+引数が空の場合は `./examples` をデフォルトとして使用してください。
+以下、`<SOURCE>` は指定されたディレクトリを指します。
+
 ## 入力（自動参照）
-- カスタムオブジェクト: `force-app/main/default/objects/*/*.object-meta.xml`
-- カスタムフィールド: `force-app/main/default/objects/*/fields/*.field-meta.xml`
+- カスタムオブジェクト: `<SOURCE>/force-app/main/default/objects/*/*.object-meta.xml`
+- カスタムフィールド: `<SOURCE>/force-app/main/default/objects/*/fields/*.field-meta.xml`
 - Step 1 の設計書: `workshop-real/01-reverse-engineering/output/system_overview.md`（ER図・フィールド定義を参照）
 
 ## 変換ルール

@@ -2,8 +2,14 @@ Step 1 (続き): 移行影響分析レポートの生成
 
 以下の SFDX プロジェクトのソースコードを分析し、移行影響分析レポートを生成してください。
 
+# SFDX ソースディレクトリ
+`$ARGUMENTS`
+
+引数が空の場合は `./examples` をデフォルトとして使用してください。
+以下、`<SOURCE>` は指定されたディレクトリを指します。
+
 # 分析対象
-force-app/ 配下の全 Apex クラス、Trigger、Batch
+`<SOURCE>/force-app/` 配下の全 Apex クラス、Trigger、Batch
 
 # 生成すべきレポート
 

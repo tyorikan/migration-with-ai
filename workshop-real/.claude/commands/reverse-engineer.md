@@ -2,14 +2,20 @@ Step 1: ソースコードからの設計ドキュメント逆起こし
 
 以下の SFDX プロジェクトのソースコードを分析し、設計ドキュメントを生成してください。
 
+# SFDX ソースディレクトリ
+`$ARGUMENTS`
+
+引数が空の場合は `./examples` をデフォルトとして使用してください。
+以下、`<SOURCE>` は指定されたディレクトリを指します。
+
 # 分析対象ファイル
-1. Apex クラス: `force-app/main/default/classes/*.cls`
-2. Apex トリガー: `force-app/main/default/triggers/*.trigger`
-3. カスタムオブジェクト: `force-app/main/default/objects/*/*.object-meta.xml`
-4. カスタムフィールド: `force-app/main/default/objects/*/fields/*.field-meta.xml`
-5. Visualforce: `force-app/main/default/pages/*.page`（存在する場合）
-6. LWC: `force-app/main/default/lwc/*/`（存在する場合）
-7. Apex テスト: `force-app/main/default/classes/*Test.cls`（存在する場合 — テストの assert は期待動作の仕様そのもの）
+1. Apex クラス: `<SOURCE>/force-app/main/default/classes/*.cls`
+2. Apex トリガー: `<SOURCE>/force-app/main/default/triggers/*.trigger`
+3. カスタムオブジェクト: `<SOURCE>/force-app/main/default/objects/*/*.object-meta.xml`
+4. カスタムフィールド: `<SOURCE>/force-app/main/default/objects/*/fields/*.field-meta.xml`
+5. Visualforce: `<SOURCE>/force-app/main/default/pages/*.page`（存在する場合）
+6. LWC: `<SOURCE>/force-app/main/default/lwc/*/`（存在する場合）
+7. Apex テスト: `<SOURCE>/force-app/main/default/classes/*Test.cls`（存在する場合 — テストの assert は期待動作の仕様そのもの）
 
 # 生成すべきドキュメント（すべて1ファイルにまとめて出力）
 

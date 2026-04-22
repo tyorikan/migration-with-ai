@@ -168,16 +168,30 @@ workshop-real/
 > 各 Step のプロンプトをコピペする代わりに、**ワンコマンドで実行**できます。
 > Claude Code の対話モードで `/project:` に続けてコマンド名を入力してください。
 
+すべてのコマンドは **引数として SFDX ソースディレクトリのパス** を受け取ります。
+引数を省略した場合は `./examples`（サンプルアプリ）がデフォルトで使用されます。
+
+```bash
+# サンプルアプリ（examples/）を使う場合
+/project:reverse-engineer ./examples
+
+# お客様の SFDX プロジェクトを使う場合
+/project:reverse-engineer ./sources
+
+# 引数省略 → デフォルトで ./examples が使用される
+/project:reverse-engineer
+```
+
 | Step | コマンド | 内容 |
 |------|---------|------|
-| 1 | `/project:reverse-engineer` | ソースコードから設計ドキュメントを逆起こし |
-| 1 | `/project:assess-migration` | 移行影響分析レポートを生成 |
-| 2 | `/project:schema-convert` | SFDC メタデータ → PostgreSQL DDL 変換 |
-| 2 | `/project:import-data` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
-| 3 | `/project:extract-test-scenarios` | Apex からテストシナリオを抽出 |
+| 1 | `/project:reverse-engineer <path>` | ソースコードから設計ドキュメントを逆起こし |
+| 1 | `/project:assess-migration <path>` | 移行影響分析レポートを生成 |
+| 2 | `/project:schema-convert <path>` | SFDC メタデータ → PostgreSQL DDL 変換 |
+| 2 | `/project:import-data <path>` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
+| 3 | `/project:extract-test-scenarios <path>` | Apex からテストシナリオを抽出 |
 | 3 | `/project:generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
 | 5 | `/project:generate-adr` | ADR（技術選定の意思決定記録）を自動生成 |
-| 全体 | `/project:run-workshop` | Step 1→2→3→5 を順序通りにチェーン実行（オーケストレーション） |
+| 全体 | `/project:run-workshop <path>` | Step 1→2→3→5 を順序通りにチェーン実行（オーケストレーション） |
 
 ---
 

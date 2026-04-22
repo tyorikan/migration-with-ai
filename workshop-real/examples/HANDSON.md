@@ -113,6 +113,17 @@ claude
 > `CLAUDE.md` が自動的に読み込まれ、変換ルール・アーキテクチャ定義が AI に注入されます。
 > さらに `.claude/skills/` と `.claude/agents/` のドメインナレッジがコンテキストとして利用可能です。
 
+> [!NOTE]
+> **ソースディレクトリの指定方法**
+> すべてのコマンドは引数として SFDX ソースディレクトリのパスを受け取ります。
+> ```bash
+> # このハンズオン（サンプルアプリ）の場合
+> /project:reverse-engineer ./examples
+>
+> # お客様の実データを使う場合（sources/ にSFDXプロジェクトを配置）
+> /project:reverse-engineer ./sources
+> ```
+
 ### 3. PostgreSQL を起動
 
 ```bash
@@ -149,7 +160,7 @@ flowchart LR
 Claude Code で以下を実行：
 
 ```
-/project:reverse-engineer
+/project:reverse-engineer ./examples
 ```
 
 **AI の挙動**:
@@ -174,7 +185,7 @@ Claude Code で以下を実行：
 ### 1.2 移行影響分析
 
 ```
-/project:assess-migration
+/project:assess-migration ./examples
 ```
 
 **期待される出力** (`01-reverse-engineering/output/migration_assessment.md`):
@@ -218,7 +229,7 @@ flowchart LR
 ### 2.1 DDL 生成
 
 ```
-/project:schema-convert
+/project:schema-convert ./examples
 ```
 
 **AI の挙動**:
@@ -316,7 +327,7 @@ flowchart LR
 ### 3.1 テストシナリオ抽出
 
 ```
-/project:extract-test-scenarios
+/project:extract-test-scenarios ./examples
 ```
 
 **AI の挙動**:

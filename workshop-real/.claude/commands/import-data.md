@@ -1,7 +1,13 @@
 Step 2 (続き): SFDC エクスポート CSV → PostgreSQL データ投入スクリプト生成
 
+## SFDX ソースディレクトリ
+`$ARGUMENTS`
+
+引数が空の場合は `./examples` をデフォルトとして使用してください。
+以下、`<SOURCE>` は指定されたディレクトリを指します。
+
 ## 入力（自動参照）
-- SFDC エクスポート CSV: `data/*.csv`（または `examples/data/*.csv`）
+- SFDC エクスポート CSV: `<SOURCE>/data/*.csv`（または `./data/*.csv`）
 - 生成済み DDL: `workshop-real/02-schema-migration/output/generated_ddl.sql`
 
 ## 指示

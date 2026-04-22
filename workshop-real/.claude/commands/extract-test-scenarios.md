@@ -1,9 +1,15 @@
 Step 3 Phase 1: Apex ソースコードからテストシナリオを抽出
 
+## SFDX ソースディレクトリ
+`$ARGUMENTS`
+
+引数が空の場合は `./examples` をデフォルトとして使用してください。
+以下、`<SOURCE>` は指定されたディレクトリを指します。
+
 ## 入力（自動参照）
-- Apex ソースコード: `force-app/main/default/classes/*.cls`
-- Apex トリガー: `force-app/main/default/triggers/*.trigger`
-- Apex テストクラス: `force-app/main/default/classes/*Test.cls`（存在する場合）
+- Apex ソースコード: `<SOURCE>/force-app/main/default/classes/*.cls`
+- Apex トリガー: `<SOURCE>/force-app/main/default/triggers/*.trigger`
+- Apex テストクラス: `<SOURCE>/force-app/main/default/classes/*Test.cls`（存在する場合）
 - Step 1 の API 仕様: `workshop-real/01-reverse-engineering/output/system_overview.md`
 
 ## 指示
