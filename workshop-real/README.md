@@ -185,7 +185,8 @@ workshop-real/
 | Step | コマンド | 内容 |
 |------|---------|------|
 | 1 | `/project:discover-source <path>` | ソースの再帰探索 + Tree 構造生成 + ナレッジ抽出 |
-| 1 | `/project:reverse-engineer <path>` | ソースコードから設計ドキュメントを逆起こし |
+| 1 | `/project:generate-wiki <path>` | 全ソースファイルを Code Wiki（1ファイル1ページ）として生成 |
+| 1 | `/project:reverse-engineer <path>` | Code Wiki を参照して統合設計ドキュメントを生成 |
 | 1 | `/project:assess-migration <path>` | 移行影響分析レポートを生成 |
 | 2 | `/project:schema-convert <path>` | SFDC メタデータ → PostgreSQL DDL 変換 |
 | 2 | `/project:import-data <path>` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |

@@ -143,35 +143,67 @@ docker compose exec db psql -U app_user -d migration_db -c "SELECT 1;"
 
 ```mermaid
 flowchart LR
-    CMD["/project:reverse-engineer"] --> AGT["sfdc-analyzer<br/>Agent"]
+    CMD0["/project:discover-source"] --> AGT["sfdc-analyzer<br/>Agent"]
+    CMD1["/project:generate-wiki"] --> AGT
+    CMD2["/project:reverse-engineer"] --> AGT
     AGT -.-> SKL["reverse-engineering<br/>Skill"]
-    AGT --> OUT["system_overview.md"]
 
-    CMD2["/project:assess-migration"] --> AGT
-    AGT --> OUT2["migration_assessment.md"]
+    AGT --> OUT0["source_tree.md<br/>knowledge_catalog.md"]
+    AGT --> OUT1["wiki/<br/>(Code Wiki)"]
+    AGT --> OUT2["system_overview.md"]
 
-    style CMD fill:#4285F4,color:#fff
+    CMD3["/project:assess-migration"] --> AGT
+    AGT --> OUT3["migration_assessment.md"]
+
+    style CMD0 fill:#0F9D58,color:#fff
+    style CMD1 fill:#F4B400,color:#000
     style CMD2 fill:#4285F4,color:#fff
+    style CMD3 fill:#4285F4,color:#fff
     style SKL fill:#FBBC04,color:#000
 ```
 
-### 1.1 設計ドキュメント逆起こし
+### 1.0 ソース再帰探索 + ナレッジ抽出（Phase 0）
 
-Claude Code で以下を実行：
+```
+/project:discover-source ./examples
+```
+
+**AI の挙動**:
+1. `find` で `examples/` を再帰走査し Tree 構造を生成
+2. `grep` で SFDC 依存 API（15 カテゴリ）を検出
+3. ビジネスロジックパターン + コーディング慣習を抽出
+
+**出力**: `source_tree.md` + `knowledge_catalog.md`
+
+### 1.1 Code Wiki 生成（Phase 1）🆕
+
+```
+/project:generate-wiki ./examples
+```
+
+**AI の挙動**:
+1. Phase 0 の成果物を参照し、全ソースファイルを読み込み
+2. **1ファイル = 1ページ** の Markdown Wiki を生成:
+   - `wiki/index.md` — プロジェクト全体概要 + ナビゲーション
+   - `wiki/architecture.md` — レイヤー図 + 呼び出しマトリクス
+   - `wiki/data-model.md` — 統合 ER 図 + リレーション一覧
+   - `wiki/objects/Store__c.md` 等 — フィールド定義 + バリデーション
+   - `wiki/classes/StoreVisitService.md` 等 — メソッド一覧 + 依存関係 + ビジネスルール
+   - `wiki/triggers/StoreVisitTrigger.md` — 副作用フロー図
+   - `wiki/ui/storeVisitForm.md` — 画面フロー + Apex バインディング
+   - `wiki/batch/StoreVisitMonthlyBatch.md` — バッチフロー + 入出力
+
+**出力**: `01-reverse-engineering/output/wiki/` 配下（約15ページ）
+
+### 1.2 統合設計書生成
 
 ```
 /project:reverse-engineer ./examples
 ```
 
 **AI の挙動**:
-1. `examples/force-app/` 配下の全ファイルを読み込み
-2. Agent `sfdc-analyzer` が 6 Phase で分析を実行:
-   - Phase 1: ディレクトリ構造を把握（オブジェクト 4個、クラス 6個、Trigger 1個）
-   - Phase 2: `.object-meta.xml` / `.field-meta.xml` から ER 図を生成
-   - Phase 3: Apex クラスのクラス責務・依存関係を抽出
-   - Phase 4: `StoreVisitTriggerHandler` の副作用マップを作成
-   - Phase 5: テストクラスの assert を仕様として記録
-   - Phase 6: 統合された `system_overview.md` を生成
+1. **Code Wiki を主要インプット** として参照（原文の再読み込みは不要）
+2. Wiki の各ページを統合し `system_overview.md` を生成
 3. Skill `reverse-engineering` の出力フォーマットと Mermaid スタイルガイドに従い出力
 
 **期待される出力** (`01-reverse-engineering/output/system_overview.md`):
@@ -588,6 +620,9 @@ rm -rf 03-code-modernization/output/.venv
 
 | 成果物 | パス | Step |
 |-------|------|------|
+| ソース Tree マップ | `01-reverse-engineering/output/source_tree.md` | 1 |
+| ナレッジカタログ | `01-reverse-engineering/output/knowledge_catalog.md` | 1 |
+| **Code Wiki** | `01-reverse-engineering/output/wiki/` | 1 |
 | システム概要書 | `01-reverse-engineering/output/system_overview.md` | 1 |
 | 移行影響分析 | `01-reverse-engineering/output/migration_assessment.md` | 1 |
 | PostgreSQL DDL | `02-schema-migration/output/generated_ddl.sql` | 2 |

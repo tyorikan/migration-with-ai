@@ -8,15 +8,25 @@ Step 1: ソースコードからの設計ドキュメント逆起こし
 引数が空の場合は `./examples` をデフォルトとして使用してください。
 以下、`<SOURCE>` は指定されたディレクトリを指します。
 
-# 事前成果物の参照（Phase 0）
+# 事前成果物の参照（推奨実行順: discover-source → generate-wiki → 本コマンド）
 
-**`/project:discover-source` を先に実行済みの場合**、以下のファイルをインプットとして参照してください:
-- `01-reverse-engineering/output/source_tree.md` — ディレクトリ Tree + ファイル一覧
-- `01-reverse-engineering/output/knowledge_catalog.md` — ナレッジ抽出カタログ（SFDC 依存 API + パターン）
+以下の事前成果物が存在する場合、**必ず参照** してください:
 
-**未実行の場合**は、自分で `<SOURCE>` を再帰的に走査してください。
+1. `01-reverse-engineering/output/source_tree.md` — ディレクトリ Tree + ファイル一覧
+2. `01-reverse-engineering/output/knowledge_catalog.md` — ナレッジ抽出カタログ
+3. `01-reverse-engineering/output/wiki/` — **Code Wiki（最重要）**
+   - `wiki/index.md` で全体構造を把握
+   - `wiki/architecture.md` で依存関係を確認
+   - `wiki/data-model.md` で ER 図を確認
+   - `wiki/classes/*.md` で各クラスの責務・メソッド・依存先を確認
+   - `wiki/objects/*.md` でフィールド定義・リレーションを確認
 
-# 分析対象ファイル
+**Code Wiki がある場合**: Wiki ページを主要インプットとし、設計書を統合・生成してください。
+原文の `.cls` や `.xml` を再読み込みする必要はありません（Wiki が要約済み）。
+
+**Code Wiki がない場合**: `<SOURCE>` を再帰的に走査し、原文を直接読み込んでください。
+
+# 分析対象ファイル（Code Wiki がない場合のフォールバック）
 
 `source_tree.md` のファイル一覧に基づき、以下を **再帰的に** 読み込んでください。
 固定パスではなく、実際のディレクトリ構造に沿って探索してください。
