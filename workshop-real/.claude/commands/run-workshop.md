@@ -12,10 +12,13 @@
 ## 実行フロー
 
 ### Step 1: 設計逆起こし
-1. `<SOURCE>/force-app/` 配下の全ソースコードを分析
-2. システム概要書を生成 → `01-reverse-engineering/output/system_overview.md`
-3. 移行影響分析レポートを生成 → `01-reverse-engineering/output/migration_assessment.md`
-4. **セルフレビュー**: 漏れ・不整合をチェックし自動修正
+1. **Phase 0: 再帰探索 + ナレッジ抽出**
+   - `<SOURCE>` を再帰的に走査し Tree 構造を生成 → `01-reverse-engineering/output/source_tree.md`
+   - SFDC 依存 API + ビジネスロジックパターンを検出 → `01-reverse-engineering/output/knowledge_catalog.md`
+2. Phase 0 の成果物を参照し、全ソースコードを分析
+3. システム概要書を生成 → `01-reverse-engineering/output/system_overview.md`
+4. 移行影響分析レポートを生成 → `01-reverse-engineering/output/migration_assessment.md`
+5. **セルフレビュー**: Phase 0 のファイル一覧と設計書のカバレッジを突合し、漏れ・不整合をチェックし自動修正
 
 ### Step 2: DB スキーマ移行 + データ投入
 1. Step 1 の ER 図 + フィールド定義を参照して DDL 生成 → `02-schema-migration/output/generated_ddl.sql`
@@ -43,6 +46,8 @@
 ## 完了条件
 
 以下がすべて揃ったら完了:
+- [ ] `01-reverse-engineering/output/source_tree.md`
+- [ ] `01-reverse-engineering/output/knowledge_catalog.md`
 - [ ] `01-reverse-engineering/output/system_overview.md`
 - [ ] `01-reverse-engineering/output/migration_assessment.md`
 - [ ] `02-schema-migration/output/generated_ddl.sql`

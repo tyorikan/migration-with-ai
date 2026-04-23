@@ -8,14 +8,26 @@ Step 1: ソースコードからの設計ドキュメント逆起こし
 引数が空の場合は `./examples` をデフォルトとして使用してください。
 以下、`<SOURCE>` は指定されたディレクトリを指します。
 
+# 事前成果物の参照（Phase 0）
+
+**`/project:discover-source` を先に実行済みの場合**、以下のファイルをインプットとして参照してください:
+- `01-reverse-engineering/output/source_tree.md` — ディレクトリ Tree + ファイル一覧
+- `01-reverse-engineering/output/knowledge_catalog.md` — ナレッジ抽出カタログ（SFDC 依存 API + パターン）
+
+**未実行の場合**は、自分で `<SOURCE>` を再帰的に走査してください。
+
 # 分析対象ファイル
-1. Apex クラス: `<SOURCE>/force-app/main/default/classes/*.cls`
-2. Apex トリガー: `<SOURCE>/force-app/main/default/triggers/*.trigger`
-3. カスタムオブジェクト: `<SOURCE>/force-app/main/default/objects/*/*.object-meta.xml`
-4. カスタムフィールド: `<SOURCE>/force-app/main/default/objects/*/fields/*.field-meta.xml`
-5. Visualforce: `<SOURCE>/force-app/main/default/pages/*.page`（存在する場合）
-6. LWC: `<SOURCE>/force-app/main/default/lwc/*/`（存在する場合）
-7. Apex テスト: `<SOURCE>/force-app/main/default/classes/*Test.cls`（存在する場合 — テストの assert は期待動作の仕様そのもの）
+
+`source_tree.md` のファイル一覧に基づき、以下を **再帰的に** 読み込んでください。
+固定パスではなく、実際のディレクトリ構造に沿って探索してください。
+
+1. Apex クラス: `**/*.cls`（テストクラスを含む）
+2. Apex トリガー: `**/*.trigger`
+3. カスタムオブジェクト: `**/*.object-meta.xml`
+4. カスタムフィールド: `**/fields/*.field-meta.xml`
+5. Visualforce: `**/*.page`（存在する場合）
+6. LWC: `**/lwc/*/`（存在する場合）
+7. フロー: `**/*.flow-meta.xml`（存在する場合）
 
 # 生成すべきドキュメント（すべて1ファイルにまとめて出力）
 
