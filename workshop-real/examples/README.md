@@ -43,7 +43,7 @@ Draft → Submitted → Approved
 
 > [!TIP]
 > テストクラスの `System.assertEquals()` / `System.assert()` は **SFDC 上の期待動作そのもの**。
-> Step 3 の `/project:extract-test-scenarios` で、これらの assert を移行先 pytest のテストシナリオに自動変換できます。
+> Step 3 の `/extract-test-scenarios` で、これらの assert を移行先 pytest のテストシナリオに自動変換できます。
 
 ### Apex トリガー（1ファイル）
 | ファイル | 対象オブジェクト | イベント |

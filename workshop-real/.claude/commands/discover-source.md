@@ -191,5 +191,5 @@ find <SOURCE> -name '*Test.cls' -o -name '*_Test.cls' | wc -l
 
 > [!IMPORTANT]
 > この Phase で生成した `source_tree.md` と `knowledge_catalog.md` は、
-> 後続の `/project:reverse-engineer` と `/project:assess-migration` の **インプット** になります。
-> 先にこのコマンドを実行してから、`/project:reverse-engineer` を実行してください。
+> 後続の `/reverse-engineer` と `/assess-migration` の **インプット** になります。
+> 先にこのコマンドを実行してから、`/reverse-engineer` を実行してください。

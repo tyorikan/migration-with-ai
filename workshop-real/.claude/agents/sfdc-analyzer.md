@@ -19,7 +19,7 @@ tools: ["Read", "Grep", "Glob", "Write"]
 
 ## 分析手順
 
-### Phase 0: 再帰探索 + ナレッジ抽出（`/project:discover-source` に対応）
+### Phase 0: 再帰探索 + ナレッジ抽出（`/discover-source` に対応）
 
 > **最初に必ずこの Phase を実行する。** 後続 Phase すべての基盤となる。
 
@@ -53,7 +53,7 @@ tools: ["Read", "Grep", "Glob", "Write"]
 - `01-reverse-engineering/output/source_tree.md`
 - `01-reverse-engineering/output/knowledge_catalog.md`
 
-### Phase 1: Code Wiki 生成（`/project:generate-wiki` に対応）
+### Phase 1: Code Wiki 生成（`/generate-wiki` に対応）
 
 Phase 0 の成果物を参照し、全ソースファイルを読み込んで **1ファイル1ページの Markdown Wiki** を生成する。
 

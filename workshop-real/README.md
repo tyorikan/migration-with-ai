@@ -173,34 +173,34 @@ workshop-real/
 
 > [!TIP]
 > 各 Step のプロンプトをコピペする代わりに、**ワンコマンドで実行**できます。
-> Claude Code の対話モードで `/project:` に続けてコマンド名を入力してください。
+> Claude Code の対話モードで `/` に続けてコマンド名を入力してください。
 
 すべてのコマンドは **引数として SFDX ソースディレクトリのパス** を受け取ります。
 引数を省略した場合は `./examples`（サンプルアプリ）がデフォルトで使用されます。
 
 ```bash
 # サンプルアプリ（examples/）を使う場合
-/project:reverse-engineer ./examples
+/reverse-engineer ./examples
 
 # お客様の SFDX プロジェクトを使う場合
-/project:reverse-engineer ./sources
+/reverse-engineer ./sources
 
 # 引数省略 → デフォルトで ./examples が使用される
-/project:reverse-engineer
+/reverse-engineer
 ```
 
 | Step | コマンド | 内容 |
 |------|---------|------|
-| 1 | `/project:discover-source <path>` | ソースの再帰探索 + Tree 構造生成 + ナレッジ抽出 |
-| 1 | `/project:generate-wiki <path>` | 全ソースファイルを Code Wiki（1ファイル1ページ）として生成 |
-| 1 | `/project:reverse-engineer <path>` | Code Wiki を参照して統合設計ドキュメントを生成 |
-| 1 | `/project:assess-migration <path>` | 移行影響分析レポートを生成 |
-| 2 | `/project:schema-convert <path>` | SFDC メタデータ → PostgreSQL DDL 変換 |
-| 2 | `/project:import-data <path>` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
-| 3 | `/project:extract-test-scenarios <path>` | Apex からテストシナリオを抽出 |
-| 3 | `/project:generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
-| 5 | `/project:generate-adr` | ADR（技術選定の意思決定記録）を自動生成 |
-| 全体 | `/project:run-workshop <path>` | Step 1→2→3→5 を順序通りにチェーン実行（オーケストレーション） |
+| 1 | `/discover-source <path>` | ソースの再帰探索 + Tree 構造生成 + ナレッジ抽出 |
+| 1 | `/generate-wiki <path>` | 全ソースファイルを Code Wiki（1ファイル1ページ）として生成 |
+| 1 | `/reverse-engineer <path>` | Code Wiki を参照して統合設計ドキュメントを生成 |
+| 1 | `/assess-migration <path>` | 移行影響分析レポートを生成 |
+| 2 | `/schema-convert <path>` | SFDC メタデータ → PostgreSQL DDL 変換 |
+| 2 | `/import-data <path>` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
+| 3 | `/extract-test-scenarios <path>` | Apex からテストシナリオを抽出 |
+| 3 | `/generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
+| 5 | `/generate-adr` | ADR（技術選定の意思決定記録）を自動生成 |
+| 全体 | `/run-workshop <path>` | Step 1→2→3→5 を順序通りにチェーン実行（オーケストレーション） |
 
 ---
 
@@ -215,7 +215,7 @@ workshop-real/
 ```mermaid
 graph TB
     subgraph "💻 参加者が操作"
-        CMD["⚡ Commands<br/>.claude/commands/*.md<br/>━━━━━━━━━━━━━━━<br/>Slash Command で呼び出し<br/>/project:reverse-engineer 等"]
+        CMD["⚡ Commands<br/>.claude/commands/*.md<br/>━━━━━━━━━━━━━━━<br/>Slash Command で呼び出し<br/>/reverse-engineer 等"]
     end
 
     subgraph "🤖 AI が自律実行"
@@ -254,10 +254,10 @@ graph TB
 ```mermaid
 flowchart LR
     subgraph "参加者の操作"
-        C0["/project:discover-source"]
-        C1["/project:generate-wiki"]
-        C2["/project:reverse-engineer"]
-        C3["/project:assess-migration"]
+        C0["/discover-source"]
+        C1["/generate-wiki"]
+        C2["/reverse-engineer"]
+        C3["/assess-migration"]
     end
 
     subgraph "Agent: sfdc-analyzer"
@@ -289,10 +289,10 @@ flowchart LR
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/project:discover-source` | `sfdc-analyzer` | `reverse-engineering` | `find` で SFDX ソースを再帰走査し Tree 構造を生成。`grep` で SFDC 依存 API（15カテゴリ）を検出。ビジネスロジックパターン + コーディング慣習を記録 | `source_tree.md`, `knowledge_catalog.md` |
-| `/project:generate-wiki` | `sfdc-analyzer` | `reverse-engineering` | 全ソースファイルを読み込み、**1ファイル1ページの Code Wiki** を生成。各ページにメソッド一覧・依存関係（双方向）・SFDC 依存 API・ビジネスルール・移行メモを含む。横断ページとして architecture.md（レイヤー図）・data-model.md（統合 ER 図）も生成 | `wiki/` 配下（~15ページ） |
-| `/project:reverse-engineer` | `sfdc-analyzer` | `reverse-engineering` | **Code Wiki を主要インプット** として参照（原文の再読み込み不要）。Wiki の各ページを統合し、Skill の出力フォーマットと複雑度判定基準に従い統合設計書を生成 | `system_overview.md` |
-| `/project:assess-migration` | `sfdc-analyzer` | `reverse-engineering` | Code Wiki + knowledge_catalog.md を参照し、コンポーネント別の移行難易度スコアリング（S/M/L/XL）、SFDC 依存 API の洗い出し、リスク評価 | `migration_assessment.md` |
+| `/discover-source` | `sfdc-analyzer` | `reverse-engineering` | `find` で SFDX ソースを再帰走査し Tree 構造を生成。`grep` で SFDC 依存 API（15カテゴリ）を検出。ビジネスロジックパターン + コーディング慣習を記録 | `source_tree.md`, `knowledge_catalog.md` |
+| `/generate-wiki` | `sfdc-analyzer` | `reverse-engineering` | 全ソースファイルを読み込み、**1ファイル1ページの Code Wiki** を生成。各ページにメソッド一覧・依存関係（双方向）・SFDC 依存 API・ビジネスルール・移行メモを含む。横断ページとして architecture.md（レイヤー図）・data-model.md（統合 ER 図）も生成 | `wiki/` 配下（~15ページ） |
+| `/reverse-engineer` | `sfdc-analyzer` | `reverse-engineering` | **Code Wiki を主要インプット** として参照（原文の再読み込み不要）。Wiki の各ページを統合し、Skill の出力フォーマットと複雑度判定基準に従い統合設計書を生成 | `system_overview.md` |
+| `/assess-migration` | `sfdc-analyzer` | `reverse-engineering` | Code Wiki + knowledge_catalog.md を参照し、コンポーネント別の移行難易度スコアリング（S/M/L/XL）、SFDC 依存 API の洗い出し、リスク評価 | `migration_assessment.md` |
 
 ---
 
@@ -301,8 +301,8 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph "参加者の操作"
-        C3["/project:schema-convert"]
-        C4["/project:import-data"]
+        C3["/schema-convert"]
+        C4["/import-data"]
     end
 
     subgraph "Agent: schema-converter"
@@ -328,8 +328,8 @@ flowchart LR
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/project:schema-convert` | `schema-converter` | `sfdc-schema-migration` | Step 1 の ER 図 + フィールド定義を参照 → Skill の命名規則（`__c` 除去→snake_case→複数形）と型マッピング（Id→VARCHAR(18) 等）に従い DDL 生成。トポロジカルソートで依存関係を解決 | `02-schema-migration/output/generated_ddl.sql`, `data_validation.sql` |
-| `/project:import-data` | `schema-converter` | `sfdc-schema-migration` | SFDC CSV ファイルのヘッダーと DDL カラムを自動マッピング → バッチ INSERT スクリプト生成。Skill のデータ移行チェックリストで整合性検証 | `02-schema-migration/output/import_data.py` |
+| `/schema-convert` | `schema-converter` | `sfdc-schema-migration` | Step 1 の ER 図 + フィールド定義を参照 → Skill の命名規則（`__c` 除去→snake_case→複数形）と型マッピング（Id→VARCHAR(18) 等）に従い DDL 生成。トポロジカルソートで依存関係を解決 | `02-schema-migration/output/generated_ddl.sql`, `data_validation.sql` |
+| `/import-data` | `schema-converter` | `sfdc-schema-migration` | SFDC CSV ファイルのヘッダーと DDL カラムを自動マッピング → バッチ INSERT スクリプト生成。Skill のデータ移行チェックリストで整合性検証 | `02-schema-migration/output/import_data.py` |
 
 ---
 
@@ -338,8 +338,8 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph "参加者の操作"
-        C5["/project:extract-test-scenarios"]
-        C6["/project:generate-and-implement"]
+        C5["/extract-test-scenarios"]
+        C6["/generate-and-implement"]
     end
 
     subgraph "Agent: python-modernizer"
@@ -369,8 +369,8 @@ flowchart LR
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/project:extract-test-scenarios` | `python-modernizer` | `tdd-modernize` | Apex テストの `System.assertEquals` を仕様として抽出。Skill のテスト変換ルール（`@TestSetup`→`@pytest.fixture` 等）に従いシナリオ化 | `03-code-modernization/output/TEST_SCENARIOS.md` |
-| `/project:generate-and-implement` | `python-modernizer` | `sfdc-to-python` + `tdd-modernize` | **🔴 RED**: Skill の conftest テンプレートでテスト生成 → **🟢 GREEN**: Skill のガバナ制限変換・Trigger→usecase パターンに従い実装。Apex→Python チートシート参照 | `03-code-modernization/output/app/`, `tests/`, `Dockerfile` |
+| `/extract-test-scenarios` | `python-modernizer` | `tdd-modernize` | Apex テストの `System.assertEquals` を仕様として抽出。Skill のテスト変換ルール（`@TestSetup`→`@pytest.fixture` 等）に従いシナリオ化 | `03-code-modernization/output/TEST_SCENARIOS.md` |
+| `/generate-and-implement` | `python-modernizer` | `sfdc-to-python` + `tdd-modernize` | **🔴 RED**: Skill の conftest テンプレートでテスト生成 → **🟢 GREEN**: Skill のガバナ制限変換・Trigger→usecase パターンに従い実装。Apex→Python チートシート参照 | `03-code-modernization/output/app/`, `tests/`, `Dockerfile` |
 
 ---
 
@@ -379,7 +379,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph "参加者の操作"
-        C7["/project:generate-adr"]
+        C7["/generate-adr"]
     end
 
     subgraph "Agent: migration-reviewer"
@@ -401,7 +401,7 @@ flowchart LR
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/project:generate-adr` | `migration-reviewer` | 全 Skills | Step 1-3 の成果物を横断レビュー → 技術選定の ADR 生成（言語/DB/基盤/品質保証/データ移行方式）。SFDC→GCP サービスマッピング図 | `05-roadmap/output/adr.md` |
+| `/generate-adr` | `migration-reviewer` | 全 Skills | Step 1-3 の成果物を横断レビュー → 技術選定の ADR 生成（言語/DB/基盤/品質保証/データ移行方式）。SFDC→GCP サービスマッピング図 | `05-roadmap/output/adr.md` |
 | （自動実行） | `migration-reviewer` | 全 Skills | 各 Step 完了時にゲートチェック実行。Step 間のデータ連携整合性（オブジェクト⊆テーブル⊆モデル）を検証 | レビューレポート |
 
 ---
@@ -410,11 +410,11 @@ flowchart LR
 
 | コマンド | 挙動 |
 |---------|------|
-| `/project:run-workshop` | Step 1→2→3→5 を自動チェーン実行。各 Step 完了後に `migration-reviewer` Agent でゲートチェックを行い、FAIL なら自動修正ループを回してから次の Step へ進む |
+| `/run-workshop` | Step 1→2→3→5 を自動チェーン実行。各 Step 完了後に `migration-reviewer` Agent でゲートチェックを行い、FAIL なら自動修正ループを回してから次の Step へ進む |
 
 ```mermaid
 flowchart TD
-    RW["/project:run-workshop"]
+    RW["/run-workshop"]
 
     subgraph "Step 1（3段パイプライン）"
         S1P0["Phase 0: discover-source"]
@@ -480,11 +480,11 @@ flowchart TD
 | Step | ドキュメント | Slash Command | Agent | Skills |
 |------|-------------|--------------|-------|--------|
 | 0 | [事前準備＆キックオフ](./00-preparation/README.md) | — | — | — |
-| 1 | [AI 設計逆起こし](./01-reverse-engineering/README.md) | `/project:reverse-engineer`<br/>`/project:assess-migration` | `sfdc-analyzer` | `reverse-engineering` |
-| 2 | [DB スキーマ移行](./02-schema-migration/README.md) | `/project:schema-convert`<br/>`/project:import-data` | `schema-converter` | `sfdc-schema-migration` |
-| 3 | [TDD コードモダナイズ](./03-code-modernization/README.md) | `/project:extract-test-scenarios`<br/>`/project:generate-and-implement` | `python-modernizer` | `sfdc-to-python`<br/>`tdd-modernize` |
+| 1 | [AI 設計逆起こし](./01-reverse-engineering/README.md) | `/reverse-engineer`<br/>`/assess-migration` | `sfdc-analyzer` | `reverse-engineering` |
+| 2 | [DB スキーマ移行](./02-schema-migration/README.md) | `/schema-convert`<br/>`/import-data` | `schema-converter` | `sfdc-schema-migration` |
+| 3 | [TDD コードモダナイズ](./03-code-modernization/README.md) | `/extract-test-scenarios`<br/>`/generate-and-implement` | `python-modernizer` | `sfdc-to-python`<br/>`tdd-modernize` |
 | 4 | [品質評価＆デリバリー](./04-quality-and-delivery/README.md) | — | `migration-reviewer` | 全 Skills |
-| 5 | [移行ロードマップ](./05-roadmap/README.md) | `/project:generate-adr` | `migration-reviewer` | 全 Skills |
+| 5 | [移行ロードマップ](./05-roadmap/README.md) | `/generate-adr` | `migration-reviewer` | 全 Skills |
 
 ---
 

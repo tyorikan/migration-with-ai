@@ -12,7 +12,7 @@
 |------|------|
 | **題材** | 店舗訪問管理アプリ（StoreVisit） |
 | **ソースコード** | `examples/force-app/main/default/` |
-| **AI ツール** | Claude Code（`/project:` スラッシュコマンドで実行） |
+| **AI ツール** | Claude Code（`/` スラッシュコマンドで実行） |
 | **所要時間** | 約 4〜5 時間 |
 | **前提** | Docker Desktop がインストール済み、Claude Code が利用可能 |
 
@@ -118,10 +118,10 @@ claude
 > すべてのコマンドは引数として SFDX ソースディレクトリのパスを受け取ります。
 > ```bash
 > # このハンズオン（サンプルアプリ）の場合
-> /project:reverse-engineer ./examples
+> /reverse-engineer ./examples
 >
 > # お客様の実データを使う場合（sources/ にSFDXプロジェクトを配置）
-> /project:reverse-engineer ./sources
+> /reverse-engineer ./sources
 > ```
 
 ### 3. PostgreSQL を起動
@@ -143,16 +143,16 @@ docker compose exec db psql -U app_user -d migration_db -c "SELECT 1;"
 
 ```mermaid
 flowchart LR
-    CMD0["/project:discover-source"] --> AGT["sfdc-analyzer<br/>Agent"]
-    CMD1["/project:generate-wiki"] --> AGT
-    CMD2["/project:reverse-engineer"] --> AGT
+    CMD0["/discover-source"] --> AGT["sfdc-analyzer<br/>Agent"]
+    CMD1["/generate-wiki"] --> AGT
+    CMD2["/reverse-engineer"] --> AGT
     AGT -.-> SKL["reverse-engineering<br/>Skill"]
 
     AGT --> OUT0["source_tree.md<br/>knowledge_catalog.md"]
     AGT --> OUT1["wiki/<br/>(Code Wiki)"]
     AGT --> OUT2["system_overview.md"]
 
-    CMD3["/project:assess-migration"] --> AGT
+    CMD3["/assess-migration"] --> AGT
     AGT --> OUT3["migration_assessment.md"]
 
     style CMD0 fill:#0F9D58,color:#fff
@@ -165,7 +165,7 @@ flowchart LR
 ### 1.0 ソース再帰探索 + ナレッジ抽出（Phase 0）
 
 ```
-/project:discover-source ./examples
+/discover-source ./examples
 ```
 
 **AI の挙動**:
@@ -178,7 +178,7 @@ flowchart LR
 ### 1.1 Code Wiki 生成（Phase 1）🆕
 
 ```
-/project:generate-wiki ./examples
+/generate-wiki ./examples
 ```
 
 **AI の挙動**:
@@ -198,7 +198,7 @@ flowchart LR
 ### 1.2 統合設計書生成
 
 ```
-/project:reverse-engineer ./examples
+/reverse-engineer ./examples
 ```
 
 **AI の挙動**:
@@ -217,7 +217,7 @@ flowchart LR
 ### 1.2 移行影響分析
 
 ```
-/project:assess-migration ./examples
+/assess-migration ./examples
 ```
 
 **期待される出力** (`01-reverse-engineering/output/migration_assessment.md`):
@@ -250,7 +250,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    CMD["/project:schema-convert"] --> AGT["schema-converter<br/>Agent"]
+    CMD["/schema-convert"] --> AGT["schema-converter<br/>Agent"]
     AGT -.-> SKL["sfdc-schema-migration<br/>Skill"]
     AGT --> OUT["generated_ddl.sql"]
 
@@ -261,7 +261,7 @@ flowchart LR
 ### 2.1 DDL 生成
 
 ```
-/project:schema-convert ./examples
+/schema-convert ./examples
 ```
 
 **AI の挙動**:
@@ -344,8 +344,8 @@ ORDER BY tc.table_name;
 
 ```mermaid
 flowchart LR
-    CMD1["/project:extract-test-scenarios"] --> AGT["python-modernizer<br/>Agent"]
-    CMD2["/project:generate-and-implement"] --> AGT
+    CMD1["/extract-test-scenarios"] --> AGT["python-modernizer<br/>Agent"]
+    CMD2["/generate-and-implement"] --> AGT
     AGT -.-> SKL1["tdd-modernize<br/>Skill"]
     AGT -.-> SKL2["sfdc-to-python<br/>Skill"]
     AGT --> OUT["app/ + tests/"]
@@ -359,7 +359,7 @@ flowchart LR
 ### 3.1 テストシナリオ抽出
 
 ```
-/project:extract-test-scenarios ./examples
+/extract-test-scenarios ./examples
 ```
 
 **AI の挙動**:
@@ -385,7 +385,7 @@ flowchart LR
 ### 3.2 テスト生成 → 実装（TDD）
 
 ```
-/project:generate-and-implement
+/generate-and-implement
 ```
 
 **AI の挙動**:
@@ -556,7 +556,7 @@ open htmlcov/index.html  # ブラウザで確認
 ### 使用するコマンド
 
 ```
-/project:generate-adr
+/generate-adr
 ```
 
 **AI の挙動**:
@@ -577,7 +577,7 @@ open htmlcov/index.html  # ブラウザで確認
 > 各 Step を個別に実行する代わりに、全体をチェーン実行することもできます。
 
 ```
-/project:run-workshop
+/run-workshop
 ```
 
 これにより Step 1 → 2 → 3 → 5 が順序通りに実行され、各 Step 完了後に `migration-reviewer` Agent がゲートチェックを実行します。
@@ -585,7 +585,7 @@ FAIL が発生した場合は自動修正ループが回ります。
 
 ```mermaid
 flowchart TD
-    RW["/project:run-workshop"]
+    RW["/run-workshop"]
     S1["Step 1: sfdc-analyzer"] --> G1{"ゲートチェック"}
     G1 -->|"✅"| S2["Step 2: schema-converter"]
     G1 -->|"❌"| S1
@@ -641,7 +641,7 @@ rm -rf 03-code-modernization/output/.venv
 
 | レイヤー | ファイル | 役割 |
 |---------|---------|------|
-| **Commands** | `.claude/commands/*.md` | 参加者が `/project:xxx` で呼び出すエントリーポイント |
+| **Commands** | `.claude/commands/*.md` | 参加者が `/xxx` で呼び出すエントリーポイント |
 | **Agents** | `.claude/agents/*.md` | Step 特化の専門エージェント（分析手順・品質基準を定義） |
 | **Skills** | `.claude/skills/*/SKILL.md` | 再利用可能なドメインナレッジ（変換ルール・パターン集） |
 

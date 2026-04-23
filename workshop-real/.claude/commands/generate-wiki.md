@@ -11,12 +11,12 @@ Step 1 Phase 1: ソースコードから Code Wiki を自動生成
 ## 目的
 
 SFDX プロジェクトの **全ファイルを1ファイル1ページ** で Wiki 化する。
-この Wiki は後続の `/project:reverse-engineer` や `/project:assess-migration` の
+この Wiki は後続の `/reverse-engineer` や `/assess-migration` の
 **主要インプット** として機能し、AI が大規模プロジェクトでも効率的に全体像を把握できるようにする。
 
 ## 事前条件
 
-`/project:discover-source` を先に実行し、以下が生成されていること:
+`/discover-source` を先に実行し、以下が生成されていること:
 - `01-reverse-engineering/output/source_tree.md`
 - `01-reverse-engineering/output/knowledge_catalog.md`
 
@@ -465,5 +465,5 @@ flowchart LR
 
 > [!IMPORTANT]
 > この Wiki は **AI が読むためのドキュメント** です。
-> 後続の `/project:reverse-engineer` は Wiki を参照して設計書を生成します。
+> 後続の `/reverse-engineer` は Wiki を参照して設計書を生成します。
 > 人間が読んでも分かりやすい形式ですが、最大の目的は AI のコンテキスト効率の最大化です。
