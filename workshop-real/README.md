@@ -119,7 +119,9 @@ workshop-real/
 ├── .claude/
 │   ├── commands/                      ← ⚡ カスタム Slash Commands
 │   │   ├── run-workshop.md            ←   /run-workshop（全体オーケストレーション）
-│   │   ├── reverse-engineer.md        ←   /reverse-engineer（Step 1）
+│   │   ├── discover-source.md         ←   /discover-source（Step 1 Phase 0）
+│   │   ├── generate-wiki.md           ←   /generate-wiki（Step 1 Phase 1）
+│   │   ├── reverse-engineer.md        ←   /reverse-engineer（Step 1 Phase 2+）
 │   │   ├── assess-migration.md        ←   /assess-migration（Step 1）
 │   │   ├── schema-convert.md          ←   /schema-convert（Step 2）
 │   │   ├── import-data.md             ←   /import-data（Step 2）
@@ -143,7 +145,12 @@ workshop-real/
 │   └── README.md                      ← 事前準備チェックリスト
 ├── 01-reverse-engineering/
 │   ├── README.md                      ← 🔑 AI 設計逆起こしガイド
-│   └── output/                        ← システム概要書、ER図、API仕様、影響分析
+│   └── output/
+│       ├── source_tree.md             ← ソース Tree マップ
+│       ├── knowledge_catalog.md       ← ナレッジ抽出カタログ
+│       ├── wiki/                      ← Code Wiki（1ファイル1ページ）
+│       ├── system_overview.md         ← 統合設計書
+│       └── migration_assessment.md    ← 移行影響分析
 ├── 02-schema-migration/
 │   ├── README.md                      ← DB スキーマ移行 + 実データ投入ガイド
 │   └── output/                        ← DDL、データ変換スクリプト、検証 SQL
@@ -238,42 +245,54 @@ graph TB
 
 ### Step 別 呼び出しフロー
 
-#### Step 1: 設計逆起こし（90分）
+#### Step 1: 設計逆起こし（90分）— 3段パイプライン
+
+> [!TIP]
+> Step 1 は **discover-source → generate-wiki → reverse-engineer** の 3段パイプラインで構成されています。
+> 各コマンドの出力が次のコマンドのインプットになります。
 
 ```mermaid
 flowchart LR
     subgraph "参加者の操作"
-        C1["/project:reverse-engineer"]
-        C2["/project:assess-migration"]
+        C0["/project:discover-source"]
+        C1["/project:generate-wiki"]
+        C2["/project:reverse-engineer"]
+        C3["/project:assess-migration"]
     end
 
     subgraph "Agent: sfdc-analyzer"
-        A1["Phase 1: 構造把握"]
-        A2["Phase 2: データモデル分析"]
-        A3["Phase 3: ビジネスロジック分析"]
-        A4["Phase 4: 副作用マップ"]
-        A5["Phase 5: テスト=仕様"]
-        A6["Phase 6: 統合出力"]
+        A0["Phase 0: 再帰探索<br/>+ ナレッジ抽出"]
+        A1["Phase 1: Code Wiki 生成<br/>（1ファイル1ページ）"]
+        A2["Phase 2-6: 構造把握<br/>→ データモデル分析<br/>→ ビジネスロジック<br/>→ 副作用マップ<br/>→ テスト=仕様"]
+        A7["Phase 7: 統合出力"]
     end
 
     subgraph "参照 Skill"
         S1["📖 reverse-engineering"]
     end
 
-    C1 --> A1 --> A2 --> A3 --> A4 --> A5 --> A6
-    C2 --> A1
+    C0 --> A0
+    C1 --> A1
+    C2 --> A2 --> A7
+    C3 --> A2
+    A0 -.->|"source_tree.md<br/>knowledge_catalog.md"| A1
+    A1 -.->|"wiki/"| A2
     A2 -.->|"出力フォーマット<br/>複雑度判定基準"| S1
-    A6 -.->|"Mermaid スタイルガイド"| S1
+    A7 -.->|"Mermaid スタイルガイド"| S1
 
-    style C1 fill:#4285F4,color:#fff
+    style C0 fill:#0F9D58,color:#fff
+    style C1 fill:#F4B400,color:#000
     style C2 fill:#4285F4,color:#fff
+    style C3 fill:#4285F4,color:#fff
     style S1 fill:#FBBC04,color:#000
 ```
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/project:reverse-engineer` | `sfdc-analyzer` | `reverse-engineering` | SFDX ソースを全件読み込み → ER 図・クラス責務・API 仕様・副作用マップを Mermaid 付きで生成。Skill の出力フォーマットと複雑度判定基準に従う | `01-reverse-engineering/output/system_overview.md` |
-| `/project:assess-migration` | `sfdc-analyzer` | `reverse-engineering` | コンポーネント別の移行難易度スコアリング（S/M/L/XL）、SFDC 依存 API の洗い出し、リスク評価 | `01-reverse-engineering/output/migration_assessment.md` |
+| `/project:discover-source` | `sfdc-analyzer` | `reverse-engineering` | `find` で SFDX ソースを再帰走査し Tree 構造を生成。`grep` で SFDC 依存 API（15カテゴリ）を検出。ビジネスロジックパターン + コーディング慣習を記録 | `source_tree.md`, `knowledge_catalog.md` |
+| `/project:generate-wiki` | `sfdc-analyzer` | `reverse-engineering` | 全ソースファイルを読み込み、**1ファイル1ページの Code Wiki** を生成。各ページにメソッド一覧・依存関係（双方向）・SFDC 依存 API・ビジネスルール・移行メモを含む。横断ページとして architecture.md（レイヤー図）・data-model.md（統合 ER 図）も生成 | `wiki/` 配下（~15ページ） |
+| `/project:reverse-engineer` | `sfdc-analyzer` | `reverse-engineering` | **Code Wiki を主要インプット** として参照（原文の再読み込み不要）。Wiki の各ページを統合し、Skill の出力フォーマットと複雑度判定基準に従い統合設計書を生成 | `system_overview.md` |
+| `/project:assess-migration` | `sfdc-analyzer` | `reverse-engineering` | Code Wiki + knowledge_catalog.md を参照し、コンポーネント別の移行難易度スコアリング（S/M/L/XL）、SFDC 依存 API の洗い出し、リスク評価 | `migration_assessment.md` |
 
 ---
 
@@ -397,9 +416,12 @@ flowchart LR
 flowchart TD
     RW["/project:run-workshop"]
 
-    subgraph "Step 1"
-        S1A["sfdc-analyzer Agent"]
+    subgraph "Step 1（3段パイプライン）"
+        S1P0["Phase 0: discover-source"]
+        S1P1["Phase 1: generate-wiki"]
+        S1A["Phase 2-7: reverse-engineer"]
         S1R["migration-reviewer<br/>ゲートチェック"]
+        S1P0 --> S1P1 --> S1A
     end
 
     subgraph "Step 2"
@@ -446,7 +468,7 @@ flowchart TD
 
 | Agent 名 | ファイル | 許可ツール | 専門領域 | 品質基準 |
 |----------|---------|----------|---------|---------|
-| `sfdc-analyzer` | `.claude/agents/sfdc-analyzer.md` | Read, Grep, Glob, Write | SFDX ソース解析、ER 図生成、ビジネスロジック抽出 | 全オブジェクト・リレーション網羅、Mermaid レンダリング可能 |
+| `sfdc-analyzer` | `.claude/agents/sfdc-analyzer.md` | Read, Grep, Glob, Write | Phase 0: ソース再帰探索 + ナレッジ抽出、Phase 1: Code Wiki 生成、Phase 2-7: ER 図生成・ビジネスロジック抽出・統合設計書生成 | 全ファイル網羅、Wiki ページ数一致、Mermaid レンダリング可能 |
 | `schema-converter` | `.claude/agents/schema-converter.md` | Read, Write, Bash, Grep | DDL 生成、データ移行、docker-compose 検証 | DDL が psql でエラーなし、FK 制約正確、行数一致 |
 | `python-modernizer` | `.claude/agents/python-modernizer.md` | Read, Write, Edit, Bash, Grep | Apex→Python 変換、TDD 実装、3層アーキテクチャ | カバレッジ 80%+、ruff/mypy パス、全 API 応答 |
 | `migration-reviewer` | `.claude/agents/migration-reviewer.md` | Read, Grep, Glob, Bash | 品質レビュー、Step 間整合性検証、ゲートチェック | Step 間データ連携の完全性、ADR カバレッジ |
