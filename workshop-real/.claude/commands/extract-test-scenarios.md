@@ -7,10 +7,19 @@ Step 3 Phase 1: Apex ソースコードからテストシナリオを抽出
 以下、`<SOURCE>` は指定されたディレクトリを指します。
 
 ## 入力（自動参照）
+
+### 主入力（Step 1 の成果物）
+- Code Wiki: `01-reverse-engineering/output/wiki/classes/`（メソッド一覧・依存関係・ビジネスルール）
+- 統合設計書: `01-reverse-engineering/output/system_overview.md`（API 仕様・テストケース一覧）
+
+### 補足入力（Wiki に assert 詳細が不足している場合のみ）
+- Apex テストクラス: `<SOURCE>/force-app/main/default/classes/*Test.cls`
 - Apex ソースコード: `<SOURCE>/force-app/main/default/classes/*.cls`
 - Apex トリガー: `<SOURCE>/force-app/main/default/triggers/*.trigger`
-- Apex テストクラス: `<SOURCE>/force-app/main/default/classes/*Test.cls`（存在する場合）
-- Step 1 の API 仕様: `workshop-real/01-reverse-engineering/output/system_overview.md`
+
+> [!NOTE]
+> Step 1 の Wiki にテストメソッド一覧と assert が十分記載されている場合は、生の Apex を再読みする必要はありません。
+> assert の具体的な値（期待値・引数）が Wiki に不足している場合のみ、補足入力として参照してください。
 
 ## 指示
 **テストシナリオの一覧だけ**を出力してください。コードの変換や実装は行わないでください。
@@ -29,4 +38,4 @@ Step 3 Phase 1: Apex ソースコードからテストシナリオを抽出
 | # | カテゴリ | シナリオ | 期待結果 | 元の Apex コード箇所 | Apex テストの assert（あれば） |
 
 ## 出力先
-`workshop-real/03-code-modernization/output/TEST_SCENARIOS.md`
+`03-code-modernization/output/TEST_SCENARIOS.md`

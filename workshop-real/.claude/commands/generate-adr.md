@@ -2,10 +2,10 @@ Step 5: ADR（技術選定の意思決定記録）の自動生成
 
 ## 入力（自動参照）
 - 全 Step の成果物:
-  - `workshop-real/01-reverse-engineering/output/`（設計書、影響分析）
-  - `workshop-real/02-schema-migration/output/`（DDL、データ移行）
-  - `workshop-real/03-code-modernization/output/`（Python プロジェクト、テスト）
-  - `workshop-real/04-quality-and-delivery/output/`（品質評価）
+  - `01-reverse-engineering/output/`（設計書、影響分析）
+  - `02-schema-migration/output/`（DDL、データ移行）
+  - `03-code-modernization/output/`（Python プロジェクト、テスト）
+  - `04-quality-and-delivery/output/`（品質評価）
 
 ## 指示
 本日のワークショップで決定した（または検討すべき）アーキテクチャ方針について、ADR を生成してください。
@@ -34,4 +34,4 @@ Step 5: ADR（技術選定の意思決定記録）の自動生成
 - SFDC → Google Cloud サービスマッピング図（Mermaid `graph LR`）
 
 ## 出力先
-`workshop-real/05-roadmap/output/adr.md`
+`05-roadmap/output/adr.md`

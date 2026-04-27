@@ -1,9 +1,14 @@
 Step 3 Phase 2 + 3: テストコード生成（🔴 RED）→ 実装（🟢 GREEN）
 
 ## 入力（自動参照）
-- テストシナリオ: `workshop-real/03-code-modernization/output/TEST_SCENARIOS.md`
-- DDL: `workshop-real/02-schema-migration/output/generated_ddl.sql`
-- API 仕様: `workshop-real/01-reverse-engineering/output/system_overview.md`
+
+### Step 3 の成果物
+- テストシナリオ: `03-code-modernization/output/TEST_SCENARIOS.md`
+
+### Step 1-2 の成果物（参照）
+- 統合設計書: `01-reverse-engineering/output/system_overview.md`（API 仕様・ステータス遷移・副作用マップ）
+- Code Wiki: `01-reverse-engineering/output/wiki/classes/`（Apex クラスの詳細ロジック）
+- DDL: `02-schema-migration/output/generated_ddl.sql`（SQLAlchemy モデル生成のベース）
 
 ## Phase 2: 🔴 RED — テストコード + スタブ生成
 
@@ -65,11 +70,11 @@ CLAUDE.md の「アーキテクチャ（3層レイヤー分離）」に従い、
 テストコードと実装を生成したら、以下を実行して結果を報告してください:
 
 ```bash
-cd workshop-real/03-code-modernization/output
+cd 03-code-modernization/output
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pytest -v --tb=short
 ```
 
 ## 出力先
-`workshop-real/03-code-modernization/output/` 配下
+`03-code-modernization/output/` 配下

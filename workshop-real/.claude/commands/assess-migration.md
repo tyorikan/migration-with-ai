@@ -1,6 +1,6 @@
 Step 1 (続き): 移行影響分析レポートの生成
 
-以下の SFDX プロジェクトのソースコードを分析し、移行影響分析レポートを生成してください。
+Step 1 の成果物を分析し、移行影響分析レポートを生成してください。
 
 # SFDX ソースディレクトリ
 `$ARGUMENTS`
@@ -8,8 +8,18 @@ Step 1 (続き): 移行影響分析レポートの生成
 引数が空の場合は `./examples` をデフォルトとして使用してください。
 以下、`<SOURCE>` は指定されたディレクトリを指します。
 
+# 入力（自動参照）
+
+## 主入力（Step 1 の成果物）
+- 統合設計書: `01-reverse-engineering/output/system_overview.md`（ER図・API仕様・テストケース一覧）
+- Code Wiki: `01-reverse-engineering/output/wiki/`（クラス別・オブジェクト別詳細）
+- ナレッジカタログ: `01-reverse-engineering/output/knowledge_catalog.md`（SFDC 依存 API 検出結果）
+
+## 補足入力（Wiki に行数・依存情報が不足している場合のみ）
+- Apex ソースコード: `<SOURCE>/force-app/main/default/classes/*.cls`
+
 # 分析対象
-`<SOURCE>/force-app/` 配下の全 Apex クラス、Trigger、Batch
+Wiki に記載された全 Apex クラス、Trigger、Batch
 
 # 生成すべきレポート
 
@@ -39,4 +49,4 @@ Step 1 (続き): 移行影響分析レポートの生成
 
 # 出力ルール
 - Markdown 形式、日本語で記述
-- 出力先: `workshop-real/01-reverse-engineering/output/migration_assessment.md`
+- 出力先: `01-reverse-engineering/output/migration_assessment.md`

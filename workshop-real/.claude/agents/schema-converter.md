@@ -17,8 +17,9 @@ tools: ["Read", "Write", "Bash", "Grep"]
 ## 変換手順
 
 ### Phase 1: インプット読み込み
-1. `01-reverse-engineering/output/system_overview.md` からオブジェクト定義を抽出
-2. 各オブジェクトのフィールド一覧、型、制約を解析
+1. `01-reverse-engineering/output/system_overview.md` から ER 図・リレーションを抽出
+2. `01-reverse-engineering/output/wiki/objects/` からフィールド定義（型、長さ、Picklist 値等）を解析
+3. Wiki に不足がある場合のみ、元の `.object-meta.xml` / `.field-meta.xml` を補足参照
 
 ### Phase 2: DDL 生成
 1. 命名規則に基づきテーブル名・カラム名を変換
@@ -63,9 +64,9 @@ ORDER BY tc.table_name;
 ```
 02-schema-migration/output/
 ├── generated_ddl.sql           ← CREATE TABLE 文（依存関係順）
-├── seed_data.sql               ← 初期データ（Picklist マスタ等）
-├── data_import.py              ← CSV → PostgreSQL 投入スクリプト
-├── verify_migration.sql        ← 整合性チェッククエリ
+├── data_validation.sql         ← 整合性チェッククエリ
+├── requirements-import.txt     ← データ投入スクリプトの依存定義
+├── import_data.py              ← CSV → PostgreSQL 投入スクリプト
 └── schema_mapping.md           ← SFDC → PostgreSQL マッピング表
 ```
 

@@ -64,7 +64,7 @@ Step 1: ソースコードからの設計ドキュメント逆起こし
 # 出力ルール
 - Markdown 形式、日本語で記述
 - Mermaid 図を積極的に使用
-- 出力先: `workshop-real/01-reverse-engineering/output/system_overview.md`
+- 出力先: `01-reverse-engineering/output/system_overview.md`
 
 # セルフレビュー
 生成後、以下を自己検証してください:
