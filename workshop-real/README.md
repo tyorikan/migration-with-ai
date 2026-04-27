@@ -132,14 +132,18 @@ workshop-real/
 │   │   ├── sfdc-analyzer.md           ←   Step 1: SFDX 分析 → 設計書生成
 │   │   ├── schema-converter.md        ←   Step 2: DDL 生成 + データ移行
 │   │   ├── python-modernizer.md       ←   Step 3: TDD で Apex → Python 変換
-│   │   └── migration-reviewer.md      ←   Step 4-5: 品質レビュー + ゲートチェック
+│   │   ├── migration-reviewer.md      ←   Step 4-5: スコアリングレビュー + ゲートチェック
 │   └── skills/                        ← 📖 ドメインナレッジモジュール
 │       ├── reverse-engineering/SKILL.md   ← 逆起こしルール + 出力フォーマット
 │       ├── sfdc-schema-migration/SKILL.md ← 型マッピング + 命名規則 + DDL テンプレート
 │       ├── sfdc-to-python/SKILL.md        ← ガバナ制限/Trigger/Batch 変換パターン
-│       └── tdd-modernize/SKILL.md         ← Apex テスト → pytest + TDD ワークフロー
+│       ├── tdd-modernize/SKILL.md         ← Apex テスト → pytest + TDD ワークフロー
+│       └── quality-rubric/SKILL.md        ← 🆕 成果物スコアリング基準（1-5 評価）
+├── workshop-state.json                ← 🆕 進捗・メトリクス・レビュースコアの状態管理
 ├── scripts/
-│   └── check-progress.sh             ← 📊 進行チェックスクリプト
+│   ├── check-progress.sh             ← 📊 進行チェックスクリプト
+│   ├── update-state.sh               ← 🆕 workshop-state.json 更新スクリプト
+│   └── verify-consistency.sh         ← 🆕 Step 間整合性チェックスクリプト
 ├── data/                              ← 📂 SFDC エクスポート CSV 置き場
 ├── 00-preparation/
 │   └── README.md                      ← 事前準備チェックリスト
@@ -201,6 +205,7 @@ workshop-real/
 | 3 | `/generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
 | 5 | `/generate-adr` | ADR（技術選定の意思決定記録）を自動生成 |
 | 全体 | `/run-workshop <path>` | Step 1→2→3→5 を順序通りにチェーン実行（オーケストレーション） |
+| 品質 | `/review-gate [N]` | 🆕 独立コンテキストでの品質ゲートチェック（`/clear` 後に実行） |
 
 ---
 
@@ -471,7 +476,7 @@ flowchart TD
 | `sfdc-analyzer` | `.claude/agents/sfdc-analyzer.md` | Read, Grep, Glob, Write | Phase 0: ソース再帰探索 + ナレッジ抽出、Phase 1: Code Wiki 生成、Phase 2-7: ER 図生成・ビジネスロジック抽出・統合設計書生成 | 全ファイル網羅、Wiki ページ数一致、Mermaid レンダリング可能 |
 | `schema-converter` | `.claude/agents/schema-converter.md` | Read, Write, Bash, Grep | DDL 生成、データ移行、docker-compose 検証 | DDL が psql でエラーなし、FK 制約正確、行数一致 |
 | `python-modernizer` | `.claude/agents/python-modernizer.md` | Read, Write, Edit, Bash, Grep | Apex→Python 変換、TDD 実装、3層アーキテクチャ | カバレッジ 80%+、ruff/mypy パス、全 API 応答 |
-| `migration-reviewer` | `.claude/agents/migration-reviewer.md` | Read, Grep, Glob, Bash | 品質レビュー、Step 間整合性検証、ゲートチェック | Step 間データ連携の完全性、ADR カバレッジ |
+| `migration-reviewer` | `.claude/agents/migration-reviewer.md` | Read, Grep, Glob, Bash | スコアリングレビュー、Step 間整合性検証、独立コンテキストゲートチェック | 全軸 3/5 以上、平均 3.5/5 以上、CRITICAL 0 件 |
 
 ---
 
@@ -502,20 +507,61 @@ flowchart TD
 
 ---
 
-## 🤖 AI セルフレビューの仕組み
+## 🤖 品質保証: 独立コンテキストレビュー
 
 > [!NOTE]
-> 各 Step で AI が生成した成果物は、**AI 自身にレビューさせる「セルフレビュー」パターン**を採用。
+> **Anthropic ハーネス設計パターン準拠**: builder（コード生成する AI）と evaluator（レビューする AI）を
+> **独立したコンテキスト**で実行し、self-leniency（自己評価の甘さ）を構造的に排除します。
+
+### 品質優先モード（推奨）
+
+各 Step 完了後に `/clear` でコンテキストをリセットし、`/review-gate` でまっさらな視点からレビューします。
 
 ```mermaid
 graph TD
-    A["Claude Code: コード/SQL 生成"] --> B["Claude Code: セルフレビュー"]
-    B --> C{レビュー結果}
-    C -->|"✅ 全項目 PASS"| D["👤 人間が最終確認"]
-    C -->|"❌ FAIL あり"| E["Claude Code: 自動修正"]
-    E --> B
-    D --> F["docker-compose で動作検証"]
-    F --> G["✅ 次の Step へ"]
+    A["🔨 builder: Step N を実行"] --> B["📝 成果物をファイルに出力"]
+    B --> C["/clear でコンテキストリセット"]
+    C --> D["🔍 /review-gate N（独立コンテキスト）"]
+    D --> E{"スコアリング結果"}
+    E -->|"全軸 3/5+ & 平均 3.5+"| F["✅ PASS → 次の Step へ"]
+    E -->|"スコア不足 or CRITICAL"| G["❌ FAIL → review_report.md に修正指示"]
+    G --> H["/clear → 修正実施"]
+    H --> C
+    F --> I["/clear → 次の Step"]
+```
+
+### 運用手順
+
+```bash
+# ① builder として Step 1 を実行
+/reverse-engineer ./examples
+
+# ② コンテキストをリセット（builder の思考履歴を消去）
+/clear
+
+# ③ 独立コンテキストで品質チェック
+/review-gate 1
+
+# ④ PASS したら次へ
+/clear
+/schema-convert ./examples
+```
+
+### 速度優先モード
+
+時間に制約がある場合は、セルフレビュー（同一コンテキスト内）のみで次の Step に進みます。
+`/run-workshop` のデフォルト動作です。
+
+### 機械的検証スクリプト
+
+どちらのモードでも、以下の検証スクリプトを **必ず** 実行してください:
+
+```bash
+# Step 間の成果物整合性を機械的にチェック
+./scripts/verify-consistency.sh
+
+# 進捗と成果物の存在確認
+./scripts/check-progress.sh
 ```
 
 ---

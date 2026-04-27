@@ -231,7 +231,7 @@ flowchart LR
 | StoreVisitMonthlyBatch | Batch | 147 | 高 | L |
 | storeVisitForm | LWC | 350 | 高 | XL（スコープ外） |
 
-### 1.3 セルフチェック
+### 1.3 品質チェック
 
 生成された設計書を確認し、以下をチェック：
 
@@ -239,6 +239,26 @@ flowchart LR
 - [ ] ER 図のリレーションが正しい（Lookup / MasterDetail の区別）
 - [ ] ステータス遷移が `Draft → Submitted → Approved/Rejected` になっている
 - [ ] テストクラスの全 assert がテストシナリオとして抽出されている
+
+### 1.4 独立コンテキストレビュー（推奨）
+
+> [!IMPORTANT]
+> **品質を最大化するには**、builder（コード生成した AI）の思考履歴を消去し、まっさらな視点でレビューします。
+> `/clear` でコンテキストをリセットしてから `/review-gate` を実行してください。
+
+```bash
+# ① コンテキストをリセット（builder の思考履歴を消去）
+/clear
+
+# ② 独立コンテキストで品質チェック（quality-rubric スキルに基づく 5 段階スコアリング）
+/review-gate 1
+
+# ③ PASS したらリセットして Step 2 へ
+/clear
+```
+
+レビュー結果は `01-reverse-engineering/output/review_report.md` に出力されます。
+不合格（スコア 3/5 未満の軸がある場合）は修正指示が記載されるので、修正後に再度 `/review-gate 1` を実行してください。
 
 ---
 
@@ -325,7 +345,14 @@ ORDER BY tc.table_name;
 "
 ```
 
-### 2.4 セルフチェック
+### 2.4 機械的検証
+
+```bash
+# Step 1 → Step 2 のデータ整合性を機械的にチェック
+./scripts/verify-consistency.sh 1-2
+```
+
+### 2.5 品質チェック
 
 - [ ] DDL がエラーなく適用できた
 - [ ] 4 テーブルが作成された
@@ -333,6 +360,13 @@ ORDER BY tc.table_name;
 - [ ] FK 制約: `visit_details.store_visit_id` → `store_visits.sfdc_id`（CASCADE）
 - [ ] FK 制約: `monthly_visit_summaries.store_id` → `stores.sfdc_id`（SET NULL）
 - [ ] Picklist の CHECK 制約が設定されている
+
+```bash
+# 独立コンテキストレビュー（推奨）
+/clear
+/review-gate 2
+/clear
+```
 
 ---
 
@@ -499,7 +533,15 @@ curl -X PATCH http://localhost:8080/store-visits/{id} \
 | `Database.Batchable` | Cloud Run Jobs テンプレート | `BATCH_SIZE` 環境変数 |
 | SOQL の動的クエリ構築 | SQLAlchemy の `select().where()` チェーン | N+1 対策 |
 
-### 3.6 セルフチェック
+### 3.6 機械的検証
+
+```bash
+# Step 2 → Step 3 のデータ整合性 + テスト実行
+./scripts/verify-consistency.sh 2-3
+./scripts/verify-consistency.sh 3
+```
+
+### 3.7 品質チェック
 
 - [ ] テストが全件 PASS
 - [ ] カバレッジ 80% 以上
@@ -507,40 +549,60 @@ curl -X PATCH http://localhost:8080/store-visits/{id} \
 - [ ] ステータス遷移が Apex テストと同じ挙動
 - [ ] 3層アーキテクチャ（router → usecase → repository）が守られている
 
+```bash
+# 独立コンテキストレビュー（推奨）
+/clear
+/review-gate 3
+/clear
+```
+
 ---
 
 ## Step 4: 📊 品質評価（45分）
 
-> **ゴール**: AI が生成した成果物の品質を評価し、改善ポイントを特定する
+> **ゴール**: AI が生成した成果物の品質を定量評価し、改善ポイントを特定する
 
-### 使用する Agent
+### 使用する Agent・Skill
 
-Agent `migration-reviewer` が以下のゲートチェックを実行：
+- Agent `migration-reviewer` + Skill `quality-rubric`（1-5 のスコアリング評価）
 
-### 4.1 Step 間整合性チェック
+### 4.1 全 Step 整合性チェック（機械的検証）
 
-| チェック | 内容 | 確認方法 |
-|---------|------|---------|
-| Step 1 → Step 2 | system_overview のオブジェクト ⊆ DDL のテーブル | テーブル数の比較 |
-| Step 2 → Step 3 | DDL のテーブル ⊆ SQLAlchemy モデル | モデルクラス数の比較 |
-| Step 1 → Step 3 | Apex テストの assert ⊆ pytest テスト | テストメソッド数の比較 |
+```bash
+# 全 Step 間の成果物整合性を一括チェック
+./scripts/verify-consistency.sh
 
-### 4.2 静的解析
+# 進捗チェック（成果物の存在 + DB 状態）
+./scripts/check-progress.sh
+```
+
+| チェック | 内容 | 検証スクリプト |
+|---------|------|-------------|
+| Step 1 → Step 2 | ER 図のオブジェクト ⊆ DDL のテーブル | `verify-consistency.sh 1-2` |
+| Step 2 → Step 3 | DDL のテーブル ⊆ SQLAlchemy モデル | `verify-consistency.sh 2-3` |
+| Step 3 テスト | pytest 全件 PASS + ruff/mypy パス | `verify-consistency.sh 3` |
+
+### 4.2 独立コンテキストレビュー（全 Step 一括）
+
+```bash
+# コンテキストリセット → 全 Step レビュー
+/clear
+/review-gate all
+```
+
+Skill `quality-rubric` に基づき、各 Step を **5 軸 × 5 段階** でスコアリングします。
+合格基準: 全軸 3/5 以上、平均 3.5/5 以上、CRITICAL 発見事項 0 件。
+
+### 4.3 静的解析
 
 ```bash
 cd 03-code-modernization/output
-
-# リンター
 ruff check app/ tests/
-
-# 型チェック
 mypy app/
-
-# セキュリティスキャン
 bandit -r app/
 ```
 
-### 4.3 テストカバレッジ確認
+### 4.4 テストカバレッジ確認
 
 ```bash
 pytest tests/ --cov=app --cov-report=html
@@ -575,31 +637,60 @@ open htmlcov/index.html  # ブラウザで確認
 
 > [!TIP]
 > 各 Step を個別に実行する代わりに、全体をチェーン実行することもできます。
+> **品質優先モード**と**速度優先モード**を選択できます。
+
+### 速度優先モード（デフォルト）
 
 ```
-/run-workshop
+/run-workshop ./examples
 ```
 
-これにより Step 1 → 2 → 3 → 5 が順序通りに実行され、各 Step 完了後に `migration-reviewer` Agent がゲートチェックを実行します。
-FAIL が発生した場合は自動修正ループが回ります。
+Step 1 → 2 → 3 → 5 が順序通りに実行され、各 Step 完了後にセルフレビュー + `verify-consistency.sh` を実行します。
+
+### 品質優先モード（推奨）
+
+各 Step を個別に実行し、`/clear` → `/review-gate` で独立コンテキストレビューを挟みます。
+
+```bash
+/reverse-engineer ./examples   # Step 1
+/clear
+/review-gate 1                 # 独立レビュー
+/clear
+/schema-convert ./examples     # Step 2
+/clear
+/review-gate 2
+/clear
+/generate-and-implement        # Step 3
+/clear
+/review-gate 3
+/clear
+/generate-adr                  # Step 5
+```
 
 ```mermaid
 flowchart TD
-    RW["/run-workshop"]
-    S1["Step 1: sfdc-analyzer"] --> G1{"ゲートチェック"}
-    G1 -->|"✅"| S2["Step 2: schema-converter"]
-    G1 -->|"❌"| S1
-    S2 --> G2{"ゲートチェック"}
-    G2 -->|"✅"| S3["Step 3: python-modernizer"]
-    G2 -->|"❌"| S2
-    S3 --> G3{"ゲートチェック"}
+    S1["Step 1: builder 実行"] --> CL1["/clear"]
+    CL1 --> G1{"/review-gate 1\nスコアリング"}
+    G1 -->|"✅ 3.5+"| CL2["/clear"]
+    G1 -->|"❌ FAIL"| FIX1["修正 → /clear → 再レビュー"]
+    FIX1 --> G1
+    CL2 --> S2["Step 2: builder 実行"]
+    S2 --> CL3["/clear"]
+    CL3 --> G2{"/review-gate 2"}
+    G2 -->|"✅"| CL4["/clear"]
+    CL4 --> S3["Step 3: builder 実行"]
+    S3 --> CL5["/clear"]
+    CL5 --> G3{"/review-gate 3"}
     G3 -->|"✅"| S5["Step 5: ADR 生成"]
-    G3 -->|"❌"| S3
     S5 --> DONE["✅ 完了"]
 
-    RW --> S1
-    style RW fill:#4285F4,color:#fff
+    style S1 fill:#4285F4,color:#fff
+    style S2 fill:#4285F4,color:#fff
+    style S3 fill:#4285F4,color:#fff
     style DONE fill:#34A853,color:#fff
+    style G1 fill:#FBBC04,color:#000
+    style G2 fill:#FBBC04,color:#000
+    style G3 fill:#FBBC04,color:#000
 ```
 
 ---
@@ -632,17 +723,25 @@ rm -rf 03-code-modernization/output/.venv
 | pytest テスト | `03-code-modernization/output/tests/` | 3 |
 | Dockerfile | `03-code-modernization/output/Dockerfile` | 3 |
 | ADR | `05-roadmap/output/adr.md` | 5 |
+| 品質レビューレポート | `XX-xxx/output/review_report.md` | 各 Step |
 
 ---
 
 ## 💡 Tips: AI ハーネスの仕組み
 
-このハンズオンでは、AI の挙動を 3 つのレイヤーで制御しています：
+このハンズオンでは、AI の挙動を 3 つのレイヤー + 品質インフラで制御しています：
 
 | レイヤー | ファイル | 役割 |
 |---------|---------|------|
 | **Commands** | `.claude/commands/*.md` | 参加者が `/xxx` で呼び出すエントリーポイント |
 | **Agents** | `.claude/agents/*.md` | Step 特化の専門エージェント（分析手順・品質基準を定義） |
 | **Skills** | `.claude/skills/*/SKILL.md` | 再利用可能なドメインナレッジ（変換ルール・パターン集） |
+| **品質ゲート** | `/review-gate` + `quality-rubric` | 独立コンテキストでの 5 段階スコアリングレビュー |
+| **状態管理** | `workshop-state.json` | 進捗・メトリクス・レビュースコアのマシンリーダブル管理 |
+| **機械的検証** | `scripts/verify-consistency.sh` | Step 間データ整合性の自動チェック |
 
-詳細は [README.md](../README.md) の「🏗️ AI ハーネスアーキテクチャ」セクションを参照してください。
+> [!NOTE]
+> **独立コンテキストレビュー**は Anthropic が Google Cloud Next 2026 で発表した「長時間エージェントのハーネス設計パターン」に基づいています。
+> `/clear` でコンテキストをリセットし、builder の盲点を引き継がないまっさらな視点でレビューすることで、self-leniency（自己評価の甘さ）を構造的に排除します。
+
+詳細は [README.md](../README.md) の「🏗️ AI ハーネスアーキテクチャ」および「🤖 品質保証: 独立コンテキストレビュー」セクションを参照してください。

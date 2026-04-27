@@ -120,6 +120,7 @@ docker compose down -v
 | `sfdc-schema-migration` | SFDC → PostgreSQL DDL 変換ルール（命名規則、型マッピング、データ移行） | Step 2: スキーマ変換時 |
 | `reverse-engineering` | SFDC ソースコードからの設計書逆起こしルール | Step 1: 逆起こし時 |
 | `tdd-modernize` | Apex テスト → pytest 変換 + TDD ワークフロー | Step 3: テスト駆動開発時 |
+| `quality-rubric` | 成果物のスコアリング評価基準（1-5 の数値評価、合格基準） | `/review-gate` 実行時 |
 
 ## Agents（特化型エージェント）
 
@@ -130,5 +131,63 @@ docker compose down -v
 | `sfdc-analyzer` | SFDX プロジェクト分析 → 設計書自動生成 | Step 1 |
 | `schema-converter` | DDL 生成 + データ移行スクリプト生成 | Step 2 |
 | `python-modernizer` | TDD で Apex → Python/FastAPI 変換 | Step 3 |
-| `migration-reviewer` | 品質レビュー + Step 間整合性検証 | Step 4-5 + 各 Step 完了時 |
+| `migration-reviewer` | 品質レビュー + スコアリング + Step 間整合性検証 | `/review-gate` + 各 Step 完了時 |
+
+---
+
+## 品質保証: 独立コンテキストレビュー
+
+> **Anthropic ハーネス設計パターン準拠**: builder と evaluator を独立したコンテキストで実行し、self-leniency（自己評価の甘さ）を排除する。
+
+各 Step 完了後に **`/clear` → `/review-gate N`** を実行することで、builder の思考履歴を一切持たない状態で品質レビューを実施できる。
+
+```
+# ① builder として Step を実行
+/reverse-engineer ./examples
+
+# ② コンテキストをリセット
+/clear
+
+# ③ 独立コンテキストで品質チェック
+/review-gate 1
+
+# ④ PASS したら次の Step へ
+/clear
+/schema-convert ./examples
+```
+
+## 状態管理: workshop-state.json
+
+`workshop-state.json` はワークショップの進捗・メトリクス・レビュースコアをマシンリーダブルに管理する。
+新しいセッション開始時にこのファイルを読み込み、前回の作業状態を正確に復元できる。
+
+```bash
+# 状態更新（各 Step 完了時に実行）
+./scripts/update-state.sh .steps.step1.status completed
+./scripts/update-state.sh .steps.step1.metrics.objects_found 8
+./scripts/update-state.sh .steps.step1.review.score 4.2
+./scripts/update-state.sh .steps.step1.review.gate_passed true
+
+# 整合性チェック（Step 間のデータ一致を機械的に検証）
+./scripts/verify-consistency.sh
+
+# 進捗チェック（成果物の存在確認 + DB 状態確認）
+./scripts/check-progress.sh
+```
+
+## ハーネス進化ポリシー
+
+### 現在のターゲットモデル
+- **Primary**: Claude Opus 4.7 (via Vertex AI)
+- **最終検証日**: 2026-04-28
+
+### モデル更新時のチェックリスト
+新しいモデルがリリースされたら、以下を順に検証し、不要になった足場は取り除くこと:
+
+1. [ ] Step 1 の3段パイプライン → Code Wiki なしの1段実行でも品質が維持されるか？
+2. [ ] Plan-First ルール → モデルが自発的に計画を立てるようになったか？
+3. [ ] 独立コンテキストレビュー → セルフレビューでも self-leniency が発生しないか？
+4. [ ] コンテキスト分割 → 全 Step を1セッションで実行しても品質が維持されるか？
+
+品質が維持される場合、そのハーネスコンポーネントを除去してシンプル化する。
 

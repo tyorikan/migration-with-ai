@@ -1,0 +1,124 @@
+{
+  "workshop_id": null,
+  "target_model": "claude-opus-4.7",
+  "source_dir": "./examples",
+  "started_at": null,
+  "steps": {
+    "step1": {
+      "status": "not_started",
+      "phases": {
+        "discover": {
+          "status": "not_started",
+          "output": "01-reverse-engineering/output/source_tree.md"
+        },
+        "wiki": {
+          "status": "not_started",
+          "output": "01-reverse-engineering/output/wiki/"
+        },
+        "reverse": {
+          "status": "not_started",
+          "output": "01-reverse-engineering/output/system_overview.md"
+        },
+        "assess": {
+          "status": "not_started",
+          "output": "01-reverse-engineering/output/migration_assessment.md"
+        }
+      },
+      "metrics": {
+        "objects_found": null,
+        "classes_found": null,
+        "triggers_found": null,
+        "wiki_pages_generated": null,
+        "mermaid_diagrams": null
+      },
+      "review": {
+        "score": null,
+        "gate_passed": false,
+        "reviewed_at": null,
+        "feedback_file": null
+      }
+    },
+    "step2": {
+      "status": "not_started",
+      "phases": {
+        "ddl": {
+          "status": "not_started",
+          "output": "02-schema-migration/output/generated_ddl.sql"
+        },
+        "validation": {
+          "status": "not_started",
+          "output": "02-schema-migration/output/data_validation.sql"
+        },
+        "import": {
+          "status": "not_started",
+          "output": "02-schema-migration/output/import_data.py"
+        }
+      },
+      "metrics": {
+        "tables_created": null,
+        "fk_constraints": null,
+        "psql_errors": null,
+        "records_imported": null
+      },
+      "consistency": {
+        "objects_in_er": null,
+        "tables_in_ddl": null,
+        "missing_tables": [],
+        "extra_tables": []
+      },
+      "review": {
+        "score": null,
+        "gate_passed": false,
+        "reviewed_at": null,
+        "feedback_file": null
+      }
+    },
+    "step3": {
+      "status": "not_started",
+      "phases": {
+        "scenarios": {
+          "status": "not_started",
+          "output": "03-code-modernization/output/TEST_SCENARIOS.md"
+        },
+        "red": {
+          "status": "not_started"
+        },
+        "green": {
+          "status": "not_started"
+        },
+        "refactor": {
+          "status": "not_started"
+        }
+      },
+      "metrics": {
+        "test_count": null,
+        "test_pass": null,
+        "test_fail": null,
+        "coverage_percent": null,
+        "ruff_errors": null,
+        "mypy_errors": null
+      },
+      "review": {
+        "score": null,
+        "gate_passed": false,
+        "reviewed_at": null,
+        "feedback_file": null
+      }
+    },
+    "step5": {
+      "status": "not_started",
+      "phases": {
+        "adr": {
+          "status": "not_started",
+          "output": "05-roadmap/output/adr.md"
+        }
+      },
+      "review": {
+        "score": null,
+        "gate_passed": false,
+        "reviewed_at": null,
+        "feedback_file": null
+      }
+    }
+  }
+}

@@ -9,6 +9,19 @@
 引数が空の場合は `./examples` をデフォルトとして使用してください。
 以下、`<SOURCE>` は指定されたディレクトリを指します。
 
+## 品質モードの選択
+
+> [!IMPORTANT]
+> **品質優先モード**（推奨）: 各 Step 完了後に `/clear` → `/review-gate N` で独立コンテキストレビューを実施。
+> **速度優先モード**: セルフレビューのみで次の Step に進む。
+
+## 初期化
+実行開始時に `workshop-state.json` を更新してください:
+```bash
+./scripts/update-state.sh .started_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+./scripts/update-state.sh .source_dir "<SOURCE>"
+```
+
 ## 実行フロー
 
 ### Step 1: 設計逆起こし
@@ -44,6 +57,27 @@
 - 各 Step 完了後に成果物の一覧を出力する
 - エラーが発生した場合は、修正してから次の Step に進む
 - **各 Step の間で「セルフレビュー → 自動修正」のループを必ず実行する**
+- **各 Step 完了時に `workshop-state.json` を更新する**
+- **各 Step 完了時に `./scripts/verify-consistency.sh` を実行する**
+
+### 品質優先モードの運用手順
+
+品質を最大化したい場合は、各 Step 完了後に以下を実施してください:
+
+```
+# ① builder として Step N を実行
+/reverse-engineer ./examples
+
+# ② コンテキストをリセット
+/clear
+
+# ③ 独立コンテキストで品質チェック
+/review-gate 1
+
+# ④ PASS したらリセットして次の Step へ
+/clear
+/schema-convert ./examples
+```
 
 ## 完了条件
 
