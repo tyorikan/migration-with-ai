@@ -264,17 +264,20 @@ flowchart LR
 
 ## Step 2: 🗃️ DB スキーマ移行（45分）
 
-> **ゴール**: SFDC オブジェクト定義を PostgreSQL DDL に変換し、docker-compose 上で動作検証する
+> **ゴール**: SFDC オブジェクト定義を PostgreSQL DDL に変換し、実データを投入して docker-compose 上で動作検証する
 
 ### 使用するコマンド・Agent・Skill
 
 ```mermaid
 flowchart LR
-    CMD["/schema-convert"] --> AGT["schema-converter<br/>Agent"]
+    CMD1["/schema-convert"] --> AGT["schema-converter<br/>Agent"]
+    CMD2["/import-data"] --> AGT
     AGT -.-> SKL["sfdc-schema-migration<br/>Skill"]
-    AGT --> OUT["generated_ddl.sql"]
+    AGT --> OUT1["generated_ddl.sql"]
+    AGT --> OUT2["import_data.py"]
 
-    style CMD fill:#4285F4,color:#fff
+    style CMD1 fill:#4285F4,color:#fff
+    style CMD2 fill:#0F9D58,color:#fff
     style SKL fill:#FBBC04,color:#000
 ```
 
@@ -345,14 +348,52 @@ ORDER BY tc.table_name;
 "
 ```
 
-### 2.4 機械的検証
+### 2.4 実データ投入
+
+> [!IMPORTANT]
+> DDL 適用が成功したら、SFDC エクスポート CSV から実データを PostgreSQL に投入します。
+> Step 3 の CRUD 検証で実データが必要になります。
+
+```
+/import-data ./examples
+```
+
+**AI の挙動**:
+1. `examples/data/` 配下の CSV を検出:
+   - `Store__c.csv` — 店舗マスタ
+   - `StoreVisit__c.csv` — 訪問記録
+   - `VisitDetail__c.csv` — 訪問詳細
+2. DDL のカラム定義から CSV ヘッダー → PostgreSQL カラム名のマッピングを自動生成
+3. FK 依存関係を考慮した投入順序: `stores` → `store_visits` → `visit_details`
+4. Python スクリプト `import_data.py` を生成し、実行
+
+**出力**: `02-schema-migration/output/import_data.py`
+
+### 2.5 データ投入結果の確認
+
+```bash
+# テーブル別レコード数を確認
+docker compose exec db psql -U app_user -d migration_db -c "
+SELECT 'stores' AS table_name, COUNT(*) FROM stores
+UNION ALL
+SELECT 'store_visits', COUNT(*) FROM store_visits
+UNION ALL
+SELECT 'visit_details', COUNT(*) FROM visit_details;
+"
+
+# データ検証 SQL を実行（孤立レコードチェック・NULL チェック等）
+docker compose exec db psql -U app_user -d migration_db \
+  -f /workspace/02-schema-migration/output/data_validation.sql
+```
+
+### 2.6 機械的検証
 
 ```bash
 # Step 1 → Step 2 のデータ整合性を機械的にチェック
 ./scripts/verify-consistency.sh 1-2
 ```
 
-### 2.5 品質チェック
+### 2.7 品質チェック
 
 - [ ] DDL がエラーなく適用できた
 - [ ] 4 テーブルが作成された
@@ -360,6 +401,8 @@ ORDER BY tc.table_name;
 - [ ] FK 制約: `visit_details.store_visit_id` → `store_visits.sfdc_id`（CASCADE）
 - [ ] FK 制約: `monthly_visit_summaries.store_id` → `stores.sfdc_id`（SET NULL）
 - [ ] Picklist の CHECK 制約が設定されている
+- [ ] CSV の全レコードが投入された（件数一致）
+- [ ] 孤立レコードが存在しない（FK 参照整合性）
 
 ```bash
 # 独立コンテキストレビュー（推奨）
@@ -718,6 +761,7 @@ rm -rf 03-code-modernization/output/.venv
 | 移行影響分析 | `01-reverse-engineering/output/migration_assessment.md` | 1 |
 | PostgreSQL DDL | `02-schema-migration/output/generated_ddl.sql` | 2 |
 | データ検証 SQL | `02-schema-migration/output/data_validation.sql` | 2 |
+| データ投入スクリプト | `02-schema-migration/output/import_data.py` | 2 |
 | テストシナリオ | `03-code-modernization/output/TEST_SCENARIOS.md` | 3 |
 | Python プロジェクト | `03-code-modernization/output/app/` | 3 |
 | pytest テスト | `03-code-modernization/output/tests/` | 3 |
