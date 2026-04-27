@@ -26,6 +26,17 @@ TOTAL_FAIL=0
 # -------------------------------------------------------
 # Step 1 → Step 2: ER 図のオブジェクト ⊆ DDL のテーブル
 # -------------------------------------------------------
+# 抽出ロジック:
+#   1. system_overview.md 内の `​```mermaid` フェンスのうち、
+#      最初のトークンが `erDiagram` のブロックだけを対象とする。
+#      （flowchart / stateDiagram / graph などは除外）
+#   2. 対象ブロック内で以下の 2 種類の行からエンティティ名を取る:
+#      - 関係行: `A ||--o{ B : "label"`  → $1 と $3 を採用（$2 が関係記号）
+#      - 宣言行: `STORE {`               → $1 を採用（$2 が `{`）
+#   3. SCREAMING_SNAKE_singular → snake_case_plural に変換し、DDL のテーブル
+#      名と突き合わせる。プロジェクト命名規則のゆれ吸収のため、複数形が
+#      見つからない場合は単数形でもフォールバック検索する。
+# -------------------------------------------------------
 check_step1_to_step2() {
   echo -e "\n${BLUE}━━━ Step 1 → Step 2: オブジェクト ⊆ テーブル ━━━${NC}"
 
@@ -41,61 +52,111 @@ check_step1_to_step2() {
     return
   fi
 
-  # system_overview.md から erDiagram 内のエンティティ名を抽出
+  # ── ① erDiagram ブロックだけを抽出 ───────────────────────────────
+  local er_block
+  er_block=$(awk '
+    /^```mermaid$/      { in_fence=1; in_er=0; next }
+    /^```$/ && in_fence { in_fence=0; in_er=0; next }
+    in_fence && $1 == "erDiagram" { in_er=1; next }
+    in_er { print }
+  ' "$overview")
+
+  # ── ② エンティティ名抽出（関係行の両端 + 宣言行） ─────────────────
+  # 関係記号セット: || }o }| ||--o{ }o--|| }|--|{ ||..|| 等
+  # 文字としては | } { o . - のみで構成される
   local er_entities
-  er_entities=$(sed -n '/```mermaid/,/```/p' "$overview" \
-    | grep -oP '^\s+(\w+)\s+(||--|}o)' \
-    | awk '{print $1}' \
-    | sort -u 2>/dev/null || true)
-
-  # フォールバック: erDiagram がパースできない場合、オブジェクト名のヘッダーから抽出
-  if [ -z "$er_entities" ]; then
-    er_entities=$(grep -oP '(?<=### )\w+' "$overview" | sort -u 2>/dev/null || true)
-  fi
-
-  # DDL から CREATE TABLE 名を抽出
-  local ddl_tables
-  ddl_tables=$(grep -oiP '(?<=CREATE TABLE\s)(IF NOT EXISTS\s+)?(\w+)' "$ddl" \
-    | awk '{print $NF}' \
-    | tr '[:upper:]' '[:lower:]' \
-    | sort -u 2>/dev/null || true)
+  er_entities=$(echo "$er_block" | awk '
+    # 関係行: $2 が関係記号らしき文字列
+    $2 ~ /^[|}{o.\-]+$/ {
+      if ($1 ~ /^[A-Za-z_][A-Za-z0-9_]*$/) print $1
+      if ($3 ~ /^[A-Za-z_][A-Za-z0-9_]*$/) print $3
+    }
+    # 宣言行: `NAME {`
+    $2 == "{" && $1 ~ /^[A-Za-z_][A-Za-z0-9_]*$/ { print $1 }
+  ' | sort -u)
 
   if [ -z "$er_entities" ]; then
-    echo -e "  ${YELLOW}⚠️${NC}  ER 図からオブジェクト名を抽出できませんでした"
+    echo -e "  ${RED}❌${NC} ER 図 (erDiagram) からエンティティを抽出できませんでした"
+    echo -e "      ${YELLOW}→${NC} $overview に \`\`\`mermaid + erDiagram ブロックが存在するか確認してください"
+    ((TOTAL_FAIL++)) || true
     return
   fi
 
-  echo "  [ER 図のエンティティ]"
-  echo "$er_entities" | while read -r e; do [ -n "$e" ] && echo "    - $e"; done
+  # ── ③ DDL のテーブル名抽出 ────────────────────────────────────────
+  local ddl_tables
+  ddl_tables=$(grep -oiP '(?<=CREATE TABLE\s)(IF NOT EXISTS\s+)?\w+' "$ddl" \
+    | awk '{print $NF}' \
+    | tr '[:upper:]' '[:lower:]' \
+    | sort -u)
+
+  # ── ④ ER エンティティ → 期待テーブル名（snake_case + 複数形） ────
+  # ルール:
+  #   - [子音]y$        → ies   (例: SUMMARY → summaries)
+  #   - s|x|z|sh|ch$    → +es   (例: ADDRESS → addresses)
+  #   - その他          → +s    (例: STORE → stores)
+  # 注意: 不規則複数形（person→people 等）は未対応。
+  #       SFDC オブジェクト名は通常規則変化のため実用上問題なし。
+  pluralize_awk='
+    function pluralize(n,    out) {
+      out = tolower(n)
+      if (out ~ /[bcdfghjklmnpqrstvwxz]y$/) {
+        sub(/y$/, "ies", out)
+      } else if (out ~ /(s|x|z|sh|ch)$/) {
+        out = out "es"
+      } else {
+        out = out "s"
+      }
+      return out
+    }
+  '
+
+  echo "  [ER 図 → 期待テーブル名]"
+  while IFS= read -r ent; do
+    [ -z "$ent" ] && continue
+    local expected
+    expected=$(echo "$ent" | awk "$pluralize_awk"'{ print pluralize($0) }')
+    echo "    - $ent → $expected"
+  done <<< "$er_entities"
 
   echo "  [DDL のテーブル]"
   echo "$ddl_tables" | while read -r t; do [ -n "$t" ] && echo "    - $t"; done
 
-  # 差分チェック
-  local missing
-  missing=$(comm -23 <(echo "$er_entities" | tr '[:upper:]' '[:lower:]' | sort -u) \
-                     <(echo "$ddl_tables" | sort -u) 2>/dev/null || true)
+  # ── ⑤ 差分チェック（複数形 → 単数形 の順でフォールバック） ────────
+  local missing=""
+  while IFS= read -r ent; do
+    [ -z "$ent" ] && continue
+    local lc plural
+    lc=$(echo "$ent" | tr '[:upper:]' '[:lower:]')
+    plural=$(echo "$ent" | awk "$pluralize_awk"'{ print pluralize($0) }')
+    if echo "$ddl_tables" | grep -qx "$plural"; then continue; fi
+    if echo "$ddl_tables" | grep -qx "$lc";     then continue; fi
+    missing+="${ent} (期待: ${plural} または ${lc})"$'\n'
+  done <<< "$er_entities"
+
+  local er_count
+  er_count=$(echo "$er_entities" | grep -c .)
 
   if [ -z "$missing" ]; then
-    echo -e "  ${GREEN}✅${NC} 全エンティティに対応するテーブルが存在"
-    ((TOTAL_OK++))
+    echo -e "  ${GREEN}✅${NC} 全エンティティに対応するテーブルが存在 (${er_count} 件)"
+    ((TOTAL_OK++)) || true
   else
     echo -e "  ${RED}❌${NC} 以下のエンティティに対応テーブルがありません:"
     echo "$missing" | while read -r m; do [ -n "$m" ] && echo "     - $m"; done
-    ((TOTAL_FAIL++))
+    ((TOTAL_FAIL++)) || true
   fi
 
-  # workshop-state.json を更新（jq がある場合）
+  # ── ⑥ workshop-state.json を更新（jq がある場合） ─────────────────
   if command -v jq &>/dev/null && [ -f "workshop-state.json" ]; then
-    local er_count ddl_count
-    er_count=$(echo "$er_entities" | grep -c . 2>/dev/null || echo 0)
-    ddl_count=$(echo "$ddl_tables" | grep -c . 2>/dev/null || echo 0)
+    local ddl_count
+    ddl_count=$(echo "$ddl_tables" | grep -c .)
     ./scripts/update-state.sh .steps.step2.consistency.objects_in_er "$er_count" 2>/dev/null || true
     ./scripts/update-state.sh .steps.step2.consistency.tables_in_ddl "$ddl_count" 2>/dev/null || true
     if [ -n "$missing" ]; then
       local missing_json
       missing_json=$(echo "$missing" | jq -R -s 'split("\n") | map(select(. != ""))' 2>/dev/null || echo "[]")
       ./scripts/update-state.sh .steps.step2.consistency.missing_tables "$missing_json" 2>/dev/null || true
+    else
+      ./scripts/update-state.sh .steps.step2.consistency.missing_tables '[]' 2>/dev/null || true
     fi
   fi
 }
@@ -197,6 +258,14 @@ check_step3_tests() {
 # -------------------------------------------------------
 # DDL psql 検証（Docker 起動中の場合）
 # -------------------------------------------------------
+# 検証戦略:
+#   - DDL を BEGIN; ... ROLLBACK; で囲んで stdin 経由で psql に流す。
+#     → 構文と実行可能性を検証しつつ、データ破壊を防ぐ。
+#       (DDL 冒頭の `DROP TABLE IF EXISTS ... CASCADE` で投入済み
+#        データが消失する事故を避ける)
+#   - ON_ERROR_STOP=1 で最初のエラーで停止。
+#   - ファイルパスのマウント設定に依存しない。
+# -------------------------------------------------------
 check_ddl_psql() {
   echo -e "\n${BLUE}━━━ Step 2: DDL psql 検証 ━━━${NC}"
 
@@ -212,13 +281,57 @@ check_ddl_psql() {
     return
   fi
 
-  echo "  [DDL 適用テスト]"
-  if docker compose exec -T db psql -U app_user -d migration_db -f "/workspace/$(basename "$ddl")" 2>&1 | tail -5; then
-    echo -e "  ${GREEN}✅${NC} DDL 適用成功"
-    ((TOTAL_OK++))
+  # 投入前のレコード総数（データ保護の事後確認用）
+  # DO ブロック内で全テーブルを動的に走査し RAISE NOTICE で結果を返す
+  # （NOTICE は stderr に出るので 2>&1 でマージ）
+  local count_sql='DO $$
+DECLARE r record; total bigint := 0; cnt bigint;
+BEGIN
+  FOR r IN SELECT table_name FROM information_schema.tables WHERE table_schema = '"'"'public'"'"' LOOP
+    EXECUTE format('"'"'SELECT count(*) FROM %I'"'"', r.table_name) INTO cnt;
+    total := total + cnt;
+  END LOOP;
+  RAISE NOTICE '"'"'TOTAL_ROWS=%'"'"', total;
+END $$;'
+  local rows_before
+  rows_before=$(docker compose exec -T db psql -U app_user -d migration_db \
+    -c "$count_sql" 2>&1 | grep -oP 'TOTAL_ROWS=\K\d+' || echo "?")
+
+  echo "  [DDL 適用テスト（トランザクション内 → ROLLBACK で巻き戻し）]"
+
+  # BEGIN/ROLLBACK でラップして stdin 経由で投入（マウントパス非依存）
+  local psql_output psql_exit
+  psql_output=$(
+    {
+      echo "BEGIN;"
+      cat "$ddl"
+      echo "ROLLBACK;"
+    } | docker compose exec -T db psql -U app_user -d migration_db \
+        -v ON_ERROR_STOP=1 -q 2>&1
+  )
+  psql_exit=$?
+
+  if [ "$psql_exit" -eq 0 ]; then
+    echo -e "  ${GREEN}✅${NC} DDL 適用成功（ROLLBACK で巻き戻し済み）"
+    ((TOTAL_OK++)) || true
   else
-    echo -e "  ${RED}❌${NC} DDL 適用でエラー発生"
-    ((TOTAL_FAIL++))
+    echo -e "  ${RED}❌${NC} DDL 適用でエラー発生:"
+    echo "$psql_output" | sed 's/^/      /' | tail -10
+    ((TOTAL_FAIL++)) || true
+  fi
+
+  # データ保護の事後確認
+  local rows_after
+  rows_after=$(docker compose exec -T db psql -U app_user -d migration_db \
+    -c "$count_sql" 2>&1 | grep -oP 'TOTAL_ROWS=\K\d+' || echo "?")
+
+  if [ "$rows_before" != "?" ] && [ "$rows_after" != "?" ]; then
+    if [ "$rows_before" = "$rows_after" ]; then
+      echo -e "      ${GREEN}✓${NC} データ保護 OK (件数: ${rows_before} → ${rows_after})"
+    else
+      echo -e "      ${RED}✗${NC} データが変動しました (件数: ${rows_before} → ${rows_after})"
+      ((TOTAL_FAIL++)) || true
+    fi
   fi
 }
 
