@@ -51,21 +51,30 @@
   ```bash
   # Vertex AI 接続の確認
   claude --version
-  claude /model  # Claude Opus が選択可能か確認
+  claude /model  # Claude が選択可能か確認
   ```
 
 - [ ] **Docker / docker-compose の準備**
   ```bash
-  docker --version    # Docker 24+ 推奨
-  docker compose version  # Compose V2
+  docker --version         # Docker 24+ 推奨
+  docker compose version   # Compose V2
+  ```
+
+- [ ] **jq コマンドの準備**（品質インフラで使用）
+  ```bash
+  jq --version   # jq 1.6+ 推奨
+  # 未インストールの場合:
+  # macOS: brew install jq
+  # Ubuntu: sudo apt-get install jq
   ```
 
 ### Google 側（ワークショップ前日まで）
 
 - [ ] お客様のソースコードを事前に受領し、構造を把握
 - [ ] Vertex AI プロジェクトのセットアップ確認
-- [ ] `workshop-real/` リポジトリの最新化
+- [ ] リポジトリの最新化
 - [ ] docker-compose の動作確認（PostgreSQL 起動テスト）
+- [ ] `.claude/` ディレクトリの存在確認（commands / agents / skills が揃っているか）
 
 ---
 
@@ -83,7 +92,7 @@
 | **設計書** | ベンダーに依頼して待つ | 🤖 AI がソースコードから逆起こし |
 | **コード変換** | 人間が手動で書き直す | 🤖 AI が変換、人間はレビュー |
 | **テスト** | 変換後に手動で書く | 🤖 TDD: テストを先に書いてから実装 |
-| **品質保証** | シニアレビュアーが目視 | 🤖 AI セルフレビュー + docker-compose 検証 |
+| **品質保証** | シニアレビュアーが目視 | 🤖 独立コンテキストレビュー + 機械的検証 |
 
 ### 2. SFDC アプリの概要説明（5分）
 
@@ -132,6 +141,9 @@ docker compose up -d db
 # 接続テスト
 docker compose exec db psql -U app_user -d migration_db -c "SELECT version();"
 # 期待結果: PostgreSQL 16.x
+
+# 品質インフラの動作確認
+jq '.current_step' workshop-state.json
 
 # 準備完了！
 echo "✅ 環境準備完了。Step 1 に進みましょう！"

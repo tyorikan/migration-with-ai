@@ -1,256 +1,196 @@
-# Step 2: DB スキーマ移行設計 + 実データ移行（13:00 – 13:45）
+# Step 2: DB スキーマ移行 + 実データ投入（13:00 – 13:45）
 
 > [!NOTE]
-> Step 1 で生成したデータモデル仕様書（ER 図、フィールド定義一覧）をインプットに、
-> **PostgreSQL DDL の生成 → 実データ変換・投入 → クエリ変換・実行検証** まで行う。
+> Step 1 で生成した **Code Wiki（`wiki/objects/`）と統合設計書（`system_overview.md`）** をインプットに、
+> PostgreSQL DDL の生成 → 実データ投入 → 整合性検証まで行う。
+> 生の SFDC メタデータ（XML）は、Wiki に情報が不足している場合のみ補足参照する。
 
 ## 🎯 ゴール
+
+SFDC のデータモデルを PostgreSQL に完全に再現し、実データが投入された状態を構築する。
 
 | 成果物 | 出力先 |
 |--------|--------|
 | PostgreSQL DDL | `02-schema-migration/output/generated_ddl.sql` |
-| データ変換スクリプト | `02-schema-migration/output/import_data.py` |
-| 変換後 SQL（SOQL → SQL） | `02-schema-migration/output/converted_queries.sql` |
 | データ整合性検証 SQL | `02-schema-migration/output/data_validation.sql` |
+| データ投入スクリプト | `02-schema-migration/output/import_data.py` |
+| 依存定義 | `02-schema-migration/output/requirements-import.txt` |
 
 ---
 
-## 2-1. SFDC メタデータ → PostgreSQL DDL 変換（15分）
+## 全体フロー
 
-### プロンプト実行
+```mermaid
+flowchart LR
+    S1["Step 1 成果物<br/>wiki/ + system_overview"] --> DDL["/schema-convert<br/>DDL 生成"]
+    DDL --> APPLY["DDL 適用<br/>psql"]
+    APPLY --> IMPORT["/import-data<br/>CSV 投入"]
+    IMPORT --> VERIFY["verify-consistency.sh<br/>機械的検証"]
+    VERIFY --> QG["🛡️<br/>品質ゲート"]
 
-`templates/schema-conversion-prompt.md` のテンプレートを使い、Claude Code に DDL を生成させます。
-
-```bash
-# Claude Code に指示
-# 入力: .object-meta.xml + .field-meta.xml
-# 出力: workshop-real/02-schema-migration/output/generated_ddl.sql
+    style S1 fill:#E8F5E9,stroke:#2E7D32
+    style DDL fill:#4285F4,color:#fff
+    style IMPORT fill:#0F9D58,color:#fff
+    style VERIFY fill:#FBBC04,color:#000
+    style QG fill:#F3E5F5,stroke:#7B1FA2
 ```
 
-### 変換ルール（プロンプトに含まれる）
+---
+
+## 2-1. DDL 生成（15分）
+
+> **何をするか**: SFDC のオブジェクト定義（型、制約、リレーション）を PostgreSQL の CREATE TABLE 文に変換する。
+> 命名規則の変換（`__c` 除去、snake_case 化、複数形化）やデータ型マッピングは Skill `sfdc-schema-migration` に定義済み。
+
+```
+/schema-convert ./examples
+```
+
+**AI が自律的に実行する内容**:
+1. Step 1 の `system_overview.md` から ER 図・リレーションを参照
+2. Step 1 の `wiki/objects/` からフィールド定義（型、長さ、Picklist 値等）を参照
+3. Skill `sfdc-schema-migration` の変換ルールを適用:
+   - `Store__c` → `stores`、`StoreVisit__c` → `store_visits` ...
+   - Lookup → `ON DELETE SET NULL`、MasterDetail → `ON DELETE CASCADE`
+4. FK 依存関係をトポロジカルソートで解決
+5. DDL + データ検証 SQL を生成
+
+**変換ルール概要**:
 
 | SFDC 型 | PostgreSQL 型 |
 |---------|---------------|
 | Id | `VARCHAR(18) PRIMARY KEY` |
-| Text | `VARCHAR(length)` |
+| Text(n) | `VARCHAR(n)` |
 | LongTextArea | `TEXT` |
-| Checkbox | `BOOLEAN` |
-| Number | `INTEGER` or `NUMERIC(p, s)` |
-| Date | `DATE` |
+| Checkbox | `BOOLEAN DEFAULT false` |
+| Number(p, s) | `INTEGER` or `NUMERIC(p, s)` |
 | DateTime | `TIMESTAMPTZ` |
-| Picklist | `VARCHAR(length)` + CHECK 制約 |
-| Lookup | `FOREIGN KEY ... ON DELETE SET NULL` |
-| MasterDetail | `FOREIGN KEY ... ON DELETE CASCADE` |
-
-### 🤖 AI セルフレビュー
-
-```
-生成した DDL をレビューしてください。
-チェック項目:
-1. テーブル名・カラム名が snake_case で __c が除去されているか
-2. PRIMARY KEY / FOREIGN KEY が正しいか
-3. NOT NULL が SFDC の必須フィールドに設定されているか
-4. CHECK 制約が Picklist 値を含んでいるか
-5. COMMENT ON で日本語ラベルが付与されているか
-```
+| Picklist | `VARCHAR(255)` + CHECK 制約 |
+| Lookup | FK `ON DELETE SET NULL` |
+| MasterDetail | FK `ON DELETE CASCADE NOT NULL` |
+| Formula | DDL に含めない（コメントで記録） |
 
 ---
 
-## 2-2. docker-compose で PostgreSQL 起動 + DDL 適用（5分）
-
-### PostgreSQL コンテナの起動
+## 2-2. DDL 適用 + 検証（5分）
 
 ```bash
-cd workshop-real
-
 # Step 0 で起動済みならスキップ
 docker compose up -d db
 
-# 起動確認
-docker compose exec db psql -U app_user -d migration_db -c "SELECT version();"
-```
-
-### DDL の適用
-
-```bash
-# 生成された DDL を適用
+# DDL を PostgreSQL に適用
 docker compose exec db psql -U app_user -d migration_db \
   -f /workspace/02-schema-migration/output/generated_ddl.sql
 
-# テーブルが作成されたか確認
+# テーブル一覧を確認
 docker compose exec db psql -U app_user -d migration_db -c "\dt"
 
 # テーブル定義の詳細確認（代表1テーブル）
-docker compose exec db psql -U app_user -d migration_db -c "\d target_table_name"
+docker compose exec db psql -U app_user -d migration_db -c "\d stores"
 ```
+
+**期待される結果**: 全オブジェクトに対応するテーブルが作成される。
 
 ---
 
-## 2-3. SFDC 実データの変換・投入・検証（15分）
-
-> [!IMPORTANT]
-> 事前準備で SFDC からエクスポートした CSV を PostgreSQL に投入する。
-> AI にデータ変換スクリプトを生成させ、カラム名マッピング・データ型変換を自動化する。
-
-### データ変換スクリプトの生成
-
-Claude Code に以下を指示：
-
-```markdown
-# 指示
-以下の CSV ファイル（SFDC エクスポート）を PostgreSQL にインポートするための
-Python スクリプトを生成してください。
-
-# 入力 CSV（data/ 配下）
-- data/Store__c.csv
-- data/StoreVisit__c.csv
-- data/VisitDetail__c.csv
-
-# 変換ルール
-1. カラム名: SFDC API 名（例: StoreCode__c）→ snake_case（例: store_code）
-2. __c サフィックスは除去
-3. SFDC の Id（18桁）はそのまま VARCHAR(18) として格納
-4. 日付: SFDC 形式（YYYY-MM-DDThh:mm:ss.000+0000）→ PostgreSQL TIMESTAMPTZ
-5. Checkbox: "true"/"false" → BOOLEAN
-6. NULL/空文字列の適切な処理
-7. 外部キー制約を考慮した投入順序（Store → StoreVisit → VisitDetail）
-
-# 技術要件
-- Python 3.12 + psycopg2（または asyncpg）
-- 環境変数で DB 接続情報を取得（DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME）
-- バッチ INSERT（1000件ずつ COPY コマンドで高速投入）
-- エラー時のロールバック + エラーログ出力
-- 投入前後の件数サマリー出力
-
-# 出力先
-workshop-real/02-schema-migration/output/import_data.py
-```
-
-### データ投入の実行
+## 2-3. 外部キー制約の確認
 
 ```bash
-# CSV ファイルをコンテナにマウント済み（docker-compose.yml の /workspace）
-
-# 方法A: AI が生成した Python スクリプトで投入
-docker compose run --rm app python /workspace/02-schema-migration/output/import_data.py
-
-# 方法B: PostgreSQL の COPY コマンドで直接投入（シンプルな場合）
-# ※ カラム名の変換が不要な場合のみ
-docker compose exec db psql -U app_user -d migration_db \
-  -c "\COPY stores FROM '/workspace/data/Store__c.csv' WITH (FORMAT csv, HEADER true)"
-```
-
-### 投入結果の検証
-
-```bash
-# --- 件数チェック ---
-# SFDC 側の件数と PostgreSQL 側の件数を比較
-echo "=== レコード件数比較 ==="
-echo "SFDC 側（CSV の行数）:"
-for f in data/*.csv; do
-  echo "  $(basename $f): $(tail -n +2 $f | wc -l | tr -d ' ') 件"
-done
-
-echo "PostgreSQL 側:"
-docker compose exec db psql -U app_user -d migration_db \
-  -c "SELECT tablename, n_tup_ins as inserted_rows FROM pg_stat_user_tables ORDER BY tablename;"
-
-# --- データサンプル確認 ---
-docker compose exec db psql -U app_user -d migration_db \
-  -c "SELECT * FROM stores LIMIT 5;"
-docker compose exec db psql -U app_user -d migration_db \
-  -c "SELECT * FROM store_visits LIMIT 5;"
-
-# --- 外部キー整合性チェック ---
-# 孤立レコード（親が存在しない子レコード）の検出
 docker compose exec db psql -U app_user -d migration_db -c "
-SELECT 'store_visits: 孤立レコード' as check_name,
-       COUNT(*) as count
-FROM store_visits sv
-LEFT JOIN stores s ON sv.store_id = s.id
-WHERE s.id IS NULL
-UNION ALL
-SELECT 'visit_details: 孤立レコード',
-       COUNT(*)
-FROM visit_details vd
-LEFT JOIN store_visits sv ON vd.store_visit_id = sv.id
-WHERE sv.id IS NULL;
+SELECT tc.table_name, kcu.column_name, ccu.table_name AS foreign_table
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+    ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage ccu
+    ON ccu.constraint_name = tc.constraint_name
+WHERE tc.constraint_type = 'FOREIGN KEY'
+ORDER BY tc.table_name;
 "
 ```
 
-> [!TIP]
-> `docker-compose.yml` でワークショップディレクトリを `/workspace` にマウントしているため、
-> `data/` に置いた CSV も `output/` に生成したスクリプトも、コンテナ内から即アクセス可能。
+---
+
+## 2-4. 実データ投入（10分）
+
+> **何をするか**: 事前準備でエクスポートした SFDC の CSV データを PostgreSQL に投入する。
+> AI がスクリプトを**生成→依存インストール→実行→検証**まで自律的に完了する。
+
+```
+/import-data ./examples
+```
+
+**AI が自律的に実行する内容**:
+1. `data/` 配下の CSV を検出
+2. `requirements-import.txt` を生成（`psycopg2-binary` 等の依存定義）
+3. DDL のカラム定義から CSV ヘッダー → PostgreSQL カラム名のマッピングを自動生成
+4. FK 依存関係を考慮した投入順序を決定（親テーブル → 子テーブル）
+5. Python スクリプト `import_data.py` を生成
+6. **依存パッケージをインストール** → **スクリプトを実行** → **結果を検証**
+
+> [!NOTE]
+> `/import-data` はスクリプト生成だけでなく、**実行と検証まで自律的に完了**します。
+> エラーが発生した場合は AI が自動でスクリプトを修正し、再実行します。
 
 ---
 
-## 2-4. SOQL → SQL 変換 + 実行検証（10分）
+## 2-5. データ投入結果の確認（人間による確認）
 
-### SOQL の自動抽出
-
-Claude Code に「Apex ソースコード内の全 SOQL クエリを抽出して一覧化してください」と指示。
-
-### SQL 変換
-
-代表的な 3-5 本を PostgreSQL SQL に変換：
-
-| SOQL 構文 | PostgreSQL 変換 |
-|-----------|----------------|
-| `Account__r.Name` | `JOIN ... ON ...; alias.name` |
-| `THIS_MONTH` | `date_trunc('month', CURRENT_DATE)` |
-| `LAST_N_DAYS:30` | `CURRENT_DATE - INTERVAL '30 days'` |
-| `TODAY` | `CURRENT_DATE` |
-| サブクエリ（子レコード） | `JOIN` or 別クエリ |
-
-### 変換した SQL の実行検証
+AI が出力した投入サマリーを確認してください。手動で追加確認する場合:
 
 ```bash
-# 変換後 SQL を実データに対して実行
-docker compose exec db psql -U app_user -d migration_db \
-  -f /workspace/02-schema-migration/output/converted_queries.sql
+# テーブル別レコード数を確認
+docker compose exec db psql -U app_user -d migration_db -c "
+SELECT 'stores' AS table_name, COUNT(*) FROM stores
+UNION ALL
+SELECT 'store_visits', COUNT(*) FROM store_visits
+UNION ALL
+SELECT 'visit_details', COUNT(*) FROM visit_details;
+"
 
-# 個別クエリのテスト（例）
+# データ検証 SQL を実行（孤立レコードチェック・NULL チェック等）
 docker compose exec db psql -U app_user -d migration_db \
-  -c "SELECT ... FROM ... JOIN ... WHERE ... ORDER BY ...;"
+  -f /workspace/02-schema-migration/output/data_validation.sql
 ```
 
 ---
 
-## 2-5. データ移行戦略の議論（5分）
+## 2-6. 機械的検証
 
-### 議論ポイント
+```bash
+# Step 1 → Step 2 のデータ整合性を機械的にチェック
+./scripts/verify-consistency.sh 1-2
+```
+
+---
+
+## 2-7. 品質チェック + 品質ゲート
+
+### セルフチェック
+
+- [ ] DDL がエラーなく適用できた
+- [ ] 全テーブルが作成された
+- [ ] FK 制約が正しい方向で設定されている（Lookup = SET NULL, MasterDetail = CASCADE）
+- [ ] Picklist の CHECK 制約が設定されている
+- [ ] CSV の全レコードが投入された（件数一致）
+- [ ] 孤立レコードが存在しない（FK 参照整合性）
+
+### 独立コンテキストレビュー（推奨）
+
+```bash
+/clear
+/review-gate 2
+/clear
+```
+
+---
+
+## 2-8. データ移行戦略の議論（5分）
+
+> 本番移行の際の方式を議論する。ワークショップではサンプルデータで検証するが、本番では以下を検討する必要がある。
 
 | 項目 | 選択肢 | 考慮事項 |
-|------|--------|---------|
+|------|--------|---------| 
 | **移行方式** | ビッグバン / 段階移行 | ダウンタイム許容度、データ量 |
 | **エクスポート** | Data Loader / Bulk API 2.0 / sf CLI | レコード件数で選択 |
 | **差分移行** | 移行期間中の更新分の扱い | CDC / タイムスタンプベース |
 | **ID マッピング** | SFDC ID をそのまま使う / UUID 採番 | 参照整合性の維持 |
-
----
-
-## ✅ Step 2 完了チェック
-
-```bash
-echo "=== Step 2 成果物チェック ==="
-for f in generated_ddl.sql import_data.py converted_queries.sql data_validation.sql; do
-  if [ -f "02-schema-migration/output/$f" ]; then
-    echo "  ✅ $f"
-  else
-    echo "  ❌ $f (missing)"
-  fi
-done
-
-# テーブルとデータの存在確認
-docker compose exec db psql -U app_user -d migration_db \
-  -c "SELECT tablename, n_tup_ins as rows FROM pg_stat_user_tables ORDER BY tablename;"
-
-# SFDC CSV vs PostgreSQL の件数一致確認
-echo "=== 件数一致チェック ==="
-for f in data/*.csv; do
-  table=$(basename $f .csv | sed 's/__c//' | tr '[:upper:]' '[:lower:]')
-  csv_count=$(tail -n +2 $f | wc -l | tr -d ' ')
-  echo "  $(basename $f): CSV=${csv_count} 件"
-done
-```
-

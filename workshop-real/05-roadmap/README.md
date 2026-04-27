@@ -14,43 +14,28 @@
 
 ## 5-1. ADR の自動生成（15分）
 
-本日の議論と成果物を Claude Code に渡し、ADR を自動生成する。
+> **何をするか**: ワークショップで決定したアーキテクチャ方針を、ADR（Architecture Decision Record）として記録する。
+> 全 Step の成果物を AI に渡し、議論と結果を構造化されたドキュメントに変換する。
 
-### プロンプト
-
-```markdown
-# 指示
-本日のワークショップで決定したアーキテクチャ方針について、ADR を生成してください。
-
-# ADR フォーマット
-## ADR-XXX: [タイトル]
-- **ステータス**: 承認済
-- **日付**: 2026-04-XX
-- **コンテキスト**: なぜこの決定が必要だったか
-- **決定**: 何を決定したか
-- **理由**: なぜその選択肢を採用したか（代替案との比較）
-- **結果**: この決定による影響・トレードオフ
-
-# 生成すべき ADR
-1. ADR-001: Backend 言語選定（Python / FastAPI）
-   - 代替案: Go, TypeScript (NestJS)
-2. ADR-002: DB エンジン選定（Cloud SQL PostgreSQL）
-   - 代替案: AlloyDB, Cloud Spanner
-3. ADR-003: コンテナ基盤選定（Cloud Run）
-   - 代替案: GKE Autopilot
-4. ADR-004: AI 駆動開発における品質保証方針
-   - TDD の採用理由、品質ゲートの設計
-5. ADR-005: コンテナ間通信の設計（docker-compose → Cloud Run + Cloud SQL）
-   - ローカル開発と本番環境の構成差異の管理
-
-# Mermaid 図の生成
-ADR の末尾に以下を含めること:
-- アーキテクチャ全体図（graph TD）
-- SFDC → Google Cloud マッピング図（graph LR）
-
-# 出力先
-workshop-real/05-roadmap/output/adr.md
 ```
+/generate-adr
+```
+
+**AI が参照する入力**:
+- `01-reverse-engineering/output/`（設計書、影響分析）
+- `02-schema-migration/output/`（DDL、データ移行）
+- `03-code-modernization/output/`（Python プロジェクト、テスト）
+- `04-quality-and-delivery/output/`（品質評価）
+
+**生成される ADR 一覧**:
+
+| # | ADR | 内容 |
+|---|-----|------|
+| 001 | Backend 言語選定 | Python / FastAPI を選択した理由（代替: Go, NestJS） |
+| 002 | DB エンジン選定 | Cloud SQL PostgreSQL を選択した理由（代替: AlloyDB, Spanner） |
+| 003 | コンテナ基盤選定 | Cloud Run を選択した理由（代替: GKE Autopilot） |
+| 004 | 品質保証方針 | TDD + 独立コンテキストレビュー + 機械的検証の採用理由 |
+| 005 | 構成差異管理 | docker-compose（ローカル）→ Cloud Run + Cloud SQL（本番）の移行設計 |
 
 ---
 
@@ -74,7 +59,7 @@ gantt
 ```
 
 | Phase | 期間目安 | 内容 | 主な成果物 |
-|-------|---------|------|-----------|
+|-------|---------|------|-----------| 
 | **Phase 0** | 1-2週間 | 全量アセスメント + GCP 環境構築 | 全コンポーネント影響分析、Terraform 環境 |
 | **Phase 1** | 2-4週間 | パイロットアプリ 1本の完全移行 | 本番動作する Python API + CI/CD + データ移行 |
 | **Phase 2** | 4-8週間 | 残りアプリの横展開 | プロンプトテンプレート再利用で効率化 |
@@ -95,11 +80,13 @@ gantt
 
 | 成果物 | Phase 1 での利用方法 |
 |--------|-------------------|
-| `templates/reverse-engineering-prompt.md` | 全アプリの設計逆起こしに再利用 |
-| `templates/schema-conversion-prompt.md` | 全オブジェクトの DDL 変換に再利用 |
-| `templates/code-modernization-prompt.md` | 全 Apex の Python 変換に再利用 |
+| `.claude/commands/` | 全アプリの設計逆起こし・スキーマ変換・コード変換に再利用 |
+| `.claude/skills/` | SFDC → Python 変換ルール、TDD ワークフロー、スコアリング基準 |
+| `.claude/agents/` | schema-converter, python-modernizer, migration-reviewer |
 | `docker-compose.yml` | ローカル開発環境のテンプレート |
-| 品質ゲートフレームワーク | CI パイプラインの設計に反映 |
+| `quality-rubric` SKILL | 品質スコアリング基準を CI に組み込み |
+| `verify-consistency.sh` | ER 図 ⊆ DDL ⊆ モデルの整合性検証を CI ゲートに |
+| `workshop-state.json` | 進捗管理のテンプレート |
 
 ---
 
@@ -122,15 +109,13 @@ gantt
 
 ### アクションアイテム
 
-Claude Code に「本日の議論内容を踏まえたアクションアイテム一覧を生成してください」と指示。
-
 | # | アクションアイテム | 担当 | 期限 | ステータス |
 |---|------------------|------|------|-----------|
 | 1 | 全量アセスメントの実施 | | | ☐ |
 | 2 | パイロットアプリの最終選定 | | | ☐ |
 | 3 | GCP プロジェクトの本番環境構築 | | | ☐ |
 | 4 | データ移行計画の詳細化 | | | ☐ |
-| 5 | プロンプトテンプレートのカスタマイズ | | | ☐ |
+| 5 | `.claude/` 資産のカスタマイズ | | | ☐ |
 
 ---
 
@@ -157,8 +142,25 @@ done
 echo ""
 echo "--- docker-compose ---"
 docker compose ps
+
+echo ""
+echo "--- workshop-state.json ---"
+cat workshop-state.json | jq '.steps | to_entries[] | "\(.key): \(.value.status)"'
+
 echo ""
 echo "==========================================="
+```
+
+### 品質スコアサマリー
+
+```bash
+# quality-rubric に基づく最終スコアを表示
+cat workshop-state.json | jq '{
+  step1: .steps.step1.score,
+  step2: .steps.step2.score,
+  step3: .steps.step3.score,
+  overall: (.steps | [.[].score // 0] | add / length)
+}'
 ```
 
 ### クリーンアップ
@@ -168,6 +170,6 @@ echo "==========================================="
 docker compose down -v
 
 # Git コミット
-git add workshop-real/
+git add .
 git commit -m "ワークショップ完了: 全 Step の成果物を格納"
 ```
