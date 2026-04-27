@@ -167,8 +167,7 @@ workshop-real/
 ├── 05-roadmap/
 │   ├── README.md                      ← 移行ロードマップ策定
 │   └── output/                        ← ADR、ロードマップ
-├── examples/                          ← サンプル SFDX プロジェクト（検証用）
-└── templates/                         ← AI プロンプトテンプレート集
+└── examples/                          ← サンプル SFDX プロジェクト（検証用）
 ```
 
 ---

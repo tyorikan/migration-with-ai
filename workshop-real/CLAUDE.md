@@ -58,8 +58,7 @@ workshop-real/
 ├── 04-quality-and-delivery/output/    ← 品質評価結果
 ├── 05-roadmap/output/                 ← ADR、ロードマップ
 ├── examples/                          ← サンプル SFDX プロジェクト（検証用）
-├── data/                              ← SFDC エクスポート CSV
-└── templates/                         ← AI プロンプトテンプレート
+└── data/                              ← SFDC エクスポート CSV
 ```
 
 ## Step 間のインプット/アウトプット連携

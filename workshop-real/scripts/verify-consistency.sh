@@ -287,7 +287,7 @@ check_ddl_psql() {
     return
   fi
 
-  if ! docker compose ps --format '{{.Name}}' 2>/dev/null | grep -q 'db'; then
+  if ! docker compose ps --format '{{.Name}}' 2>/dev/null | grep -q 'sfdc-migration-db'; then
     echo -e "  ${YELLOW}⚠️${NC}  PostgreSQL コンテナが起動していません（docker compose up -d db で起動してください）"
     return
   fi

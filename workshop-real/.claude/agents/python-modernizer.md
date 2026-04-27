@@ -22,12 +22,9 @@ app/
 ├── config.py               ← pydantic-settings 設定
 ├── db.py                   ← SQLAlchemy エンジン + セッション
 ├── dependencies.py         ← get_session → get_*_repo → get_usecase の Depends チェーン
-├── models/
+├── model/
 │   ├── __init__.py
-│   └── {entity}.py         ← SQLAlchemy モデル
-├── schemas/
-│   ├── __init__.py
-│   └── {entity}.py         ← Pydantic リクエスト/レスポンススキーマ
+│   └── schemas.py          ← Pydantic リクエスト/レスポンススキーマ（SQLAlchemy モデルも併置可）
 ├── router/
 │   ├── __init__.py
 │   └── {entity}_router.py  ← FastAPI Router
@@ -36,14 +33,14 @@ app/
 │   └── {entity}_usecase.py ← ビジネスロジック（フレームワーク非依存）
 ├── repository/
 │   ├── __init__.py
-│   ├── base.py              ← ABC（インターフェース）+ dataclass
-│   └── {entity}_repository.py ← ★ SQLAlchemy 具象実装（必須。ABC のみは不可）
+│   ├── {entity}_repository.py            ← ABC（インターフェース）+ dataclass
+│   └── {entity}_repository_sqlalchemy.py ← ★ SQLAlchemy 具象実装（必須。ABC のみは不可）
 └── jobs/                    ← ★ Apex Batch クラスがある場合のみ必須
     ├── __init__.py
     └── {job_name}.py        ← Cloud Run Jobs 互換の async main + 冪等な upsert
 ```
 
-> **MUST**: `repository/{entity}_repository.py` の SQLAlchemy 具象実装と、`dependencies.py` の DI wiring は **production 起動性を担保するため必須**。
+> **MUST**: `repository/{entity}_repository_sqlalchemy.py` の SQLAlchemy 具象実装と、`dependencies.py` の DI wiring は **production 起動性を担保するため必須**。
 > ABC だけ書いて `get_usecase` を `NotImplementedError` のまま提出することは禁止。
 
 ## 変換手順

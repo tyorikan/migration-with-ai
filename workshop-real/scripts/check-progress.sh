@@ -45,7 +45,7 @@ step0() {
   local ok=0 fail=0
 
   echo "  [ソースコード]"
-  if check_dir "examples/force-app"; then ((ok++)); else ((fail++)); fi
+  if check_dir "examples/force-app"; then ok=$((ok+1)); else fail=$((fail+1)); fi
 
   echo "  [データ]"
   local csv_count=0
@@ -58,27 +58,27 @@ step0() {
     for f in "${csv_files[@]}"; do
       echo "     $(basename "$f"): $(tail -n +2 "$f" | wc -l | tr -d ' ') レコード"
     done
-    ((ok++))
+    ok=$((ok+1))
   else
     echo -e "  ${RED}❌${NC} CSV ファイルが見つかりません"
-    ((fail++))
+    fail=$((fail+1))
   fi
 
   echo "  [ツール]"
   if command -v claude &>/dev/null; then
     echo -e "  ${GREEN}✅${NC} Claude Code: $(claude --version 2>/dev/null || echo 'installed')"
-    ((ok++))
+    ok=$((ok+1))
   else
     echo -e "  ${RED}❌${NC} Claude Code が見つかりません"
-    ((fail++))
+    fail=$((fail+1))
   fi
 
   if command -v docker &>/dev/null; then
     echo -e "  ${GREEN}✅${NC} Docker: $(docker --version 2>/dev/null | head -1)"
-    ((ok++))
+    ok=$((ok+1))
   else
     echo -e "  ${RED}❌${NC} Docker が見つかりません"
-    ((fail++))
+    fail=$((fail+1))
   fi
 
   echo -e "\n  ${GREEN}${ok} passed${NC}, ${RED}${fail} failed${NC}"
@@ -89,8 +89,8 @@ step1() {
   echo -e "\n${BLUE}━━━ Step 1: AI 設計逆起こし ━━━${NC}"
   local ok=0 fail=0
 
-  if check_file "01-reverse-engineering/output/system_overview.md"; then ((ok++)); else ((fail++)); fi
-  if check_file "01-reverse-engineering/output/migration_assessment.md"; then ((ok++)); else ((fail++)); fi
+  if check_file "01-reverse-engineering/output/system_overview.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "01-reverse-engineering/output/migration_assessment.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
 
   # 内容チェック（Mermaid 図が含まれているか）
   if [ -f "01-reverse-engineering/output/system_overview.md" ]; then
@@ -98,10 +98,10 @@ step1() {
     mermaid_count=$(grep -c '```mermaid' "01-reverse-engineering/output/system_overview.md" 2>/dev/null || echo 0)
     if [ "$mermaid_count" -gt 0 ]; then
       echo -e "  ${GREEN}✅${NC} Mermaid 図: ${mermaid_count} 個"
-      ((ok++))
+      ok=$((ok+1))
     else
       echo -e "  ${YELLOW}⚠️${NC}  Mermaid 図が見つかりません"
-      ((fail++))
+      fail=$((fail+1))
     fi
   fi
 
@@ -113,14 +113,14 @@ step2() {
   echo -e "\n${BLUE}━━━ Step 2: DB スキーマ移行 + 実データ投入 ━━━${NC}"
   local ok=0 fail=0
 
-  if check_file "02-schema-migration/output/generated_ddl.sql"; then ((ok++)); else ((fail++)); fi
-  if check_file "02-schema-migration/output/import_data.py"; then ((ok++)); else ((fail++)); fi
-  if check_file "02-schema-migration/output/data_validation.sql"; then ((ok++)); else ((fail++)); fi
+  if check_file "02-schema-migration/output/generated_ddl.sql"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "02-schema-migration/output/import_data.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "02-schema-migration/output/data_validation.sql"; then ok=$((ok+1)); else fail=$((fail+1)); fi
 
   # Docker チェック
   if docker compose ps --format '{{.Name}}' 2>/dev/null | grep -q 'sfdc-migration-db'; then
     echo -e "  ${GREEN}✅${NC} PostgreSQL コンテナ: 起動中"
-    ((ok++))
+    ok=$((ok+1))
 
     # テーブル数チェック
     local table_count
@@ -128,7 +128,7 @@ step2() {
       -c "SELECT count(*) FROM pg_tables WHERE schemaname='public';" 2>/dev/null | tr -d ' ' || echo 0)
     if [ "$table_count" -gt 0 ]; then
       echo -e "  ${GREEN}✅${NC} テーブル数: ${table_count}"
-      ((ok++))
+      ok=$((ok+1))
 
       # レコード数
       echo "  [テーブル別レコード数]"
@@ -152,22 +152,52 @@ step3() {
   echo -e "\n${BLUE}━━━ Step 3: TDD コードモダナイズ ━━━${NC}"
   local ok=0 fail=0
 
-  if check_file "03-code-modernization/output/TEST_SCENARIOS.md"; then ((ok++)); else ((fail++)); fi
-  if check_file "03-code-modernization/output/Dockerfile"; then ((ok++)); else ((fail++)); fi
-  if check_file "03-code-modernization/output/requirements.txt"; then ((ok++)); else ((fail++)); fi
+  if check_file "03-code-modernization/output/TEST_SCENARIOS.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "03-code-modernization/output/Dockerfile"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "03-code-modernization/output/requirements.txt"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "03-code-modernization/output/requirements-dev.txt"; then ok=$((ok+1)); else fail=$((fail+1)); fi
 
-  for f in app/main.py app/config.py app/model/schemas.py app/router/resource.py app/usecase/resource.py app/repository/resource.py; do
-    if check_file "03-code-modernization/output/$f"; then ((ok++)); else ((fail++)); fi
+  for f in app/main.py app/config.py app/dependencies.py app/model/schemas.py; do
+    if check_file "03-code-modernization/output/$f"; then ok=$((ok+1)); else fail=$((fail+1)); fi
   done
 
+  # router / usecase / repository は entity 名がプレフィックスに付くため glob で検出
+  # （例: store_visit_router.py / store_visit_usecase.py / store_visit_repository.py）
+  shopt -s nullglob
+  local router_files=(03-code-modernization/output/app/router/*.py)
+  local usecase_files=(03-code-modernization/output/app/usecase/*.py)
+  local repo_abc_files=(03-code-modernization/output/app/repository/*_repository.py 03-code-modernization/output/app/repository/resource.py)
+  local repo_impl_files=(03-code-modernization/output/app/repository/*_sqlalchemy.py)
+  shopt -u nullglob
+
+  # __init__.py を除外
+  local has_router=0 has_usecase=0 has_repo_abc=0 has_repo_impl=0
+  for f in "${router_files[@]}"; do
+    if [[ "$(basename "$f")" != "__init__.py" ]]; then has_router=1; break; fi
+  done
+  for f in "${usecase_files[@]}"; do
+    if [[ "$(basename "$f")" != "__init__.py" ]]; then has_usecase=1; break; fi
+  done
+  for f in "${repo_abc_files[@]}"; do
+    if [[ "$(basename "$f")" != "__init__.py" ]]; then has_repo_abc=1; break; fi
+  done
+  for f in "${repo_impl_files[@]}"; do
+    if [[ "$(basename "$f")" != "__init__.py" ]]; then has_repo_impl=1; break; fi
+  done
+
+  if [ "$has_router" -eq 1 ]; then echo -e "  ${GREEN}✅${NC} app/router/*.py"; ok=$((ok+1)); else echo -e "  ${RED}❌${NC} app/router/*.py ${RED}(missing)${NC}"; fail=$((fail+1)); fi
+  if [ "$has_usecase" -eq 1 ]; then echo -e "  ${GREEN}✅${NC} app/usecase/*.py"; ok=$((ok+1)); else echo -e "  ${RED}❌${NC} app/usecase/*.py ${RED}(missing)${NC}"; fail=$((fail+1)); fi
+  if [ "$has_repo_abc" -eq 1 ]; then echo -e "  ${GREEN}✅${NC} app/repository/*_repository.py (ABC)"; ok=$((ok+1)); else echo -e "  ${RED}❌${NC} app/repository/*_repository.py ${RED}(missing)${NC}"; fail=$((fail+1)); fi
+  if [ "$has_repo_impl" -eq 1 ]; then echo -e "  ${GREEN}✅${NC} app/repository/*_sqlalchemy.py (具象実装)"; ok=$((ok+1)); else echo -e "  ${RED}❌${NC} app/repository/*_sqlalchemy.py ${RED}(MUST: ABC のみは不可)${NC}"; fail=$((fail+1)); fi
+
   for f in tests/conftest.py tests/test_model.py tests/test_usecase.py tests/test_router.py; do
-    if check_file "03-code-modernization/output/$f"; then ((ok++)); else ((fail++)); fi
+    if check_file "03-code-modernization/output/$f"; then ok=$((ok+1)); else fail=$((fail+1)); fi
   done
 
   # テスト実行結果
   if docker compose ps --format '{{.Name}}' 2>/dev/null | grep -q 'sfdc-migration-app'; then
     echo -e "  ${GREEN}✅${NC} App コンテナ: 起動中"
-    ((ok++))
+    ok=$((ok+1))
   else
     echo -e "  ${YELLOW}⚠️${NC}  App コンテナが起動していません"
   fi
@@ -186,9 +216,9 @@ step5() {
   echo -e "\n${BLUE}━━━ Step 5: ロードマップ ━━━${NC}"
   local ok=0 fail=0
 
-  if check_file "05-roadmap/output/adr.md"; then ((ok++)); else ((fail++)); fi
-  if check_file "05-roadmap/output/roadmap.md"; then ((ok++)); else ((fail++)); fi
-  if check_file "05-roadmap/output/action_items.md"; then ((ok++)); else ((fail++)); fi
+  if check_file "05-roadmap/output/adr.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "05-roadmap/output/roadmap.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "05-roadmap/output/action_items.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
 
   echo -e "\n  ${GREEN}${ok} passed${NC}, ${RED}${fail} failed${NC}"
 }
