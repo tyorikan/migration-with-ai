@@ -256,3 +256,9 @@ case "$STEP" in
 esac
 
 echo -e "\n${BLUE}==========================================${NC}"
+
+# workshop-state.json のスキーマ検証（exit code には影響させない）
+if [ -x "$WORKSHOP_DIR/scripts/validate-state.sh" ]; then
+  echo ""
+  "$WORKSHOP_DIR/scripts/validate-state.sh" || true
+fi

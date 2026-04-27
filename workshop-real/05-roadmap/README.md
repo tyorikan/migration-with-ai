@@ -155,12 +155,18 @@ echo "==========================================="
 
 ```bash
 # quality-rubric に基づく最終スコアを表示
+# 注: スコアは .steps.stepN.review.score に格納される（review オブジェクト配下）。
+#     未評価の Step (score: null) は平均から除外する。
 cat workshop-state.json | jq '{
-  step1: .steps.step1.score,
-  step2: .steps.step2.score,
-  step3: .steps.step3.score,
-  overall: (.steps | [.[].score // 0] | add / length)
+  step1: .steps.step1.review.score,
+  step2: .steps.step2.review.score,
+  step3: .steps.step3.review.score,
+  step5: .steps.step5.review.score,
+  overall: ([.steps[].review.score | select(. != null)] | add / length)
 }'
+
+# JSON Schema に対するバリデーション（型崩れ・必須キー欠落の早期検知）
+./scripts/validate-state.sh
 ```
 
 ### クリーンアップ

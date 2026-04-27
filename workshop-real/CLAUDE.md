@@ -160,6 +160,8 @@ docker compose down -v
 `workshop-state.json` はワークショップの進捗・メトリクス・レビュースコアをマシンリーダブルに管理する。
 新しいセッション開始時にこのファイルを読み込み、前回の作業状態を正確に復元できる。
 
+構造は `workshop-state.schema.json`（JSON Schema Draft-07）で定義されている。スコアは必ず `.steps.stepN.review.score` 配下に格納する（直下ではない）点に注意。
+
 ```bash
 # 状態更新（各 Step 完了時に実行）
 ./scripts/update-state.sh .steps.step1.status completed
@@ -167,10 +169,13 @@ docker compose down -v
 ./scripts/update-state.sh .steps.step1.review.score 4.2
 ./scripts/update-state.sh .steps.step1.review.gate_passed true
 
+# スキーマ検証（型崩れ・必須キー欠落・enum 違反の早期検知）
+./scripts/validate-state.sh
+
 # 整合性チェック（Step 間のデータ一致を機械的に検証）
 ./scripts/verify-consistency.sh
 
-# 進捗チェック（成果物の存在確認 + DB 状態確認）
+# 進捗チェック（成果物の存在確認 + DB 状態確認 + スキーマ検証）
 ./scripts/check-progress.sh
 ```
 
