@@ -198,16 +198,36 @@ async def client(session):
 - [ ] DB 操作はトランザクション内で実行・ロールバック
 - [ ] 外部依存はモック化されている
 - [ ] テストが独立して実行可能（順序依存なし）
-- [ ] カバレッジ 80% 以上
+- [ ] カバレッジ **80% 以上**（`--cov-fail-under=80` で機械的にゲート）
+- [ ] **具象 Repository に対する DB 統合テストが少なくとも 1 件**（mock のみではなく、SQLAlchemy 経由で DDL → CRUD → 検証 を回すケース）
+- [ ] **Apex Batch クラスがある場合は `tests/test_jobs.py` で Batch 動作を検証**（最低: start フィルタ / execute 集計 / 冪等性 / finish 通知 / 任意月引数）
+
+## 開発依存（`requirements-dev.txt`）
+
+> ランタイム依存は `requirements.txt`、開発・検証依存は `requirements-dev.txt` に分離する。
+> `pyproject.toml` で `[tool.mypy] strict = true` などを宣言する場合は、**対応するツールを `requirements-dev.txt` に必ず収録** すること（収録漏れは `No module named ...` で機械的検証が空回りする）。
+
+```
+mypy>=1.13.0
+pytest-cov>=6.0.0
+bandit>=1.8.0
+ruff>=0.8.4   # ランタイム不要だが CI で実行するためここでも管理
+```
 
 ## 実行コマンド
 
 ```bash
-# テスト実行
-pytest tests/ -v
+# 1. テスト + カバレッジ（80% 未満で失敗）
+pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=80
 
-# カバレッジ付き
-pytest tests/ --cov=app --cov-report=term-missing
+# 2. 型チェック（pyproject.toml の [tool.mypy] strict 設定に従う）
+mypy app/
+
+# 3. セキュリティスキャン（HIGH/MEDIUM が出たら必ず確認）
+bandit -r app/
+
+# 4. lint
+ruff check app/ tests/
 
 # 特定テストのみ
 pytest tests/unit/test_usecases.py -v -k "test_create"
@@ -215,3 +235,6 @@ pytest tests/unit/test_usecases.py -v -k "test_create"
 # 並列実行
 pytest tests/ -n auto
 ```
+
+> **GREEN の定義**: 上記 4 コマンドすべての exit 0、または bandit のみ false positive で `# nosec B<id>` を理由付きで明示している状態。
+> いずれかが失敗したまま「実装完了」と報告するのは禁止。

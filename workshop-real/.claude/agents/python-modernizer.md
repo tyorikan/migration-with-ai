@@ -18,9 +18,10 @@ tools: ["Read", "Write", "Edit", "Bash", "Grep"]
 
 ```
 app/
-├── main.py                 ← FastAPI アプリ定義
+├── main.py                 ← FastAPI アプリ定義 + DI wiring 完成（NotImplementedError は残さない）
 ├── config.py               ← pydantic-settings 設定
 ├── db.py                   ← SQLAlchemy エンジン + セッション
+├── dependencies.py         ← get_session → get_*_repo → get_usecase の Depends チェーン
 ├── models/
 │   ├── __init__.py
 │   └── {entity}.py         ← SQLAlchemy モデル
@@ -33,11 +34,17 @@ app/
 ├── usecase/
 │   ├── __init__.py
 │   └── {entity}_usecase.py ← ビジネスロジック（フレームワーク非依存）
-└── repository/
+├── repository/
+│   ├── __init__.py
+│   ├── base.py              ← ABC（インターフェース）+ dataclass
+│   └── {entity}_repository.py ← ★ SQLAlchemy 具象実装（必須。ABC のみは不可）
+└── jobs/                    ← ★ Apex Batch クラスがある場合のみ必須
     ├── __init__.py
-    ├── base.py              ← ABC（インターフェース）
-    └── {entity}_repository.py ← SQLAlchemy 実装
+    └── {job_name}.py        ← Cloud Run Jobs 互換の async main + 冪等な upsert
 ```
+
+> **MUST**: `repository/{entity}_repository.py` の SQLAlchemy 具象実装と、`dependencies.py` の DI wiring は **production 起動性を担保するため必須**。
+> ABC だけ書いて `get_usecase` を `NotImplementedError` のまま提出することは禁止。
 
 ## 変換手順
 
@@ -70,7 +77,14 @@ app/
 ### Phase 6: リファクタリング（REFACTOR）
 1. コード品質を向上
 2. テストは全件 GREEN のまま
-3. ruff / mypy でチェック
+3. ruff / mypy / bandit でチェック（`requirements-dev.txt` が必要）
+
+### Phase 7: Batch 層（Cloud Run Jobs）
+1. 対象 SFDC プロジェクトの `*Batch.cls`（`Database.Batchable` を implements するクラス）を網羅的に列挙
+2. 各 Batch を `app/jobs/<job_name>.py` に移植（`sfdc-to-python` SKILL の「4. Batch Apex → Cloud Run Jobs」テンプレート準拠）
+3. **冪等性必須**: `INSERT ... ON CONFLICT (key1, key2) DO UPDATE` などで再実行安全性を担保
+4. テスト: `tests/test_jobs.py` に最低 4 件（start 範囲 / execute 集計 / finish 通知 / 冪等性 / 任意月引数）
+5. Cloud Run Jobs / Cloud Scheduler 連携の README を `docs/jobs.md` に記載（任意）
 
 ## コーディング規約
 
@@ -119,9 +133,10 @@ throw new AuraHandled...      → raise HTTPException(status_code=400, ...)
 
 ```
 03-code-modernization/output/
-├── app/                        ← FastAPI アプリケーション
-├── tests/                      ← pytest テスト
-├── requirements.txt            ← 依存パッケージ
+├── app/                        ← FastAPI アプリケーション（jobs/ を含む）
+├── tests/                      ← pytest テスト（test_jobs.py を含む）
+├── requirements.txt            ← ランタイム依存パッケージ
+├── requirements-dev.txt        ← ★ 必須: mypy / pytest-cov / bandit など開発依存
 ├── Dockerfile                  ← コンテナ定義
 └── modernization_report.md     ← 移行レポート
 ```

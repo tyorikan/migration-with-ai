@@ -119,56 +119,190 @@ class StoreVisitUseCase:
 
 ## 4. Batch Apex → Cloud Run Jobs
 
+> **MUST**: `Database.Batchable` を implements する Apex クラスは **すべて** `app/jobs/<job_name>.py` として Python に移植する。スコア評価で「Batch 未着手」は Apex 変換正確性 ≤ 3 に直結するため省略不可。
+
 | SFDC Batch | Python 変換 |
 |-----------|------------|
-| `Database.Batchable<SObject>` | 独立した Python スクリプト（Cloud Run Jobs で実行） |
-| `start()` → QueryLocator | SQLAlchemy のクエリ（ページネーション付き） |
+| `Database.Batchable<SObject>` | 独立した Python モジュール（Cloud Run Jobs で実行） |
+| `Database.Stateful` 状態保持 | クロージャ or インスタンス変数で実装（async main で集約） |
+| `start()` → QueryLocator | SQLAlchemy のクエリ（必要に応じてページネーション） |
 | `execute()` → scope | バッチサイズごとの処理ループ（`BATCH_SIZE` 環境変数） |
-| `finish()` → 完了処理 | ログ出力 + 結果通知（Cloud Logging / Pub/Sub） |
+| `finish()` → 完了処理 | ログ出力 + 結果通知（Cloud Logging / Pub/Sub / メール） |
 | `System.schedule()` | Cloud Scheduler → Cloud Run Jobs のトリガー |
+| `upsert` | **`INSERT ... ON CONFLICT (key) DO UPDATE` で冪等性担保（必須）** |
 
-### 変換テンプレート
+### 変換テンプレート（`app/jobs/<job_name>.py`）
 
 ```python
+"""Monthly aggregation batch — replaces Apex StoreVisitMonthlyBatch.
+
+Run with:
+    python -m app.jobs.monthly_visit_batch [YYYY-MM]
+"""
+from __future__ import annotations
+
 import os
+import sys
+from dataclasses import dataclass
+from datetime import date
+
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import SessionLocal
+from app.models import MonthlyVisitSummary, Store, StoreVisit, VisitDetail
+from app.notifier import EmailMessage, EmailNotifier
 
 logger = structlog.get_logger()
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "200"))
 
-async def run_batch(session: AsyncSession) -> dict:
-    """Batch Apex の execute() 相当"""
-    offset = 0
-    total_processed = 0
 
-    while True:
-        # start() 相当: QueryLocator
-        result = await session.execute(
-            select(TargetModel)
-            .where(TargetModel.needs_processing == True)
-            .limit(BATCH_SIZE)
-            .offset(offset)
+@dataclass
+class BatchResult:
+    stores_processed: int
+    visits_processed: int
+    errors: list[str]
+
+
+async def run_monthly_batch(
+    session: AsyncSession,
+    notifier: EmailNotifier,
+    *,
+    month_start: date | None = None,
+    month_end: date | None = None,
+    admin_email: str | None = None,
+) -> BatchResult:
+    """Batch Apex の start/execute/finish を 1 関数に集約。冪等。"""
+    today = date.today()
+    if month_start is None or month_end is None:
+        month_start = (today.replace(day=1) - _months(1))
+        month_end = today.replace(day=1) - _days(1)
+
+    errors: list[str] = []
+    stores_processed = 0
+    visits_processed = 0
+
+    # start() 相当: アクティブ店舗を取得
+    stores = (await session.execute(
+        select(Store).where(Store.is_active == True).order_by(Store.region, Store.store_code)
+    )).scalars().all()
+
+    # execute() 相当: バッチごとに集計 + upsert
+    for chunk_start in range(0, len(stores), BATCH_SIZE):
+        chunk = stores[chunk_start : chunk_start + BATCH_SIZE]
+        store_ids = [s.id for s in chunk]
+
+        stats_rows = (await session.execute(
+            select(
+                StoreVisit.store_id,
+                func.count(StoreVisit.id).label("visit_count"),
+                func.avg(StoreVisit.rating).label("avg_rating"),
+                func.min(StoreVisit.rating).label("min_rating"),
+                func.max(StoreVisit.rating).label("max_rating"),
+            )
+            .where(
+                StoreVisit.store_id.in_(store_ids),
+                StoreVisit.visit_date.between(month_start, month_end),
+                StoreVisit.status.in_(["Submitted", "Approved"]),
+            )
+            .group_by(StoreVisit.store_id)
+        )).all()
+        stats_by_store = {r.store_id: r for r in stats_rows}
+
+        pending_rows = (await session.execute(
+            select(
+                StoreVisit.store_id,
+                func.count(VisitDetail.id).label("pending_count"),
+            )
+            .join(StoreVisit, StoreVisit.id == VisitDetail.store_visit_id)
+            .where(
+                StoreVisit.store_id.in_(store_ids),
+                VisitDetail.is_completed == False,
+                VisitDetail.due_date <= month_end,
+            )
+            .group_by(StoreVisit.store_id)
+        )).all()
+        pending_by_store = {r.store_id: r.pending_count for r in pending_rows}
+
+        rows = []
+        for store in chunk:
+            stats = stats_by_store.get(store.id)
+            rows.append({
+                "id": _generate_summary_id(store.id, month_start),
+                "name": f"{store.store_code}-{month_start.strftime('%Y%m')}",
+                "store_id": store.id,
+                "month_start": month_start,
+                "month_end": month_end,
+                "visit_count": int(stats.visit_count) if stats else 0,
+                "average_rating": stats.avg_rating if stats else None,
+                "min_rating": int(stats.min_rating) if stats and stats.min_rating else None,
+                "max_rating": int(stats.max_rating) if stats and stats.max_rating else None,
+                "pending_action_count": pending_by_store.get(store.id, 0),
+            })
+            stores_processed += 1
+            visits_processed += int(stats.visit_count) if stats else 0
+
+        # ★ 冪等性: ON CONFLICT (store_id, month_start) DO UPDATE
+        try:
+            stmt = pg_insert(MonthlyVisitSummary).values(rows)
+            stmt = stmt.on_conflict_do_update(
+                constraint="monthly_visit_summaries_store_month_unique",
+                set_={
+                    "visit_count": stmt.excluded.visit_count,
+                    "average_rating": stmt.excluded.average_rating,
+                    "min_rating": stmt.excluded.min_rating,
+                    "max_rating": stmt.excluded.max_rating,
+                    "pending_action_count": stmt.excluded.pending_action_count,
+                    "month_end": stmt.excluded.month_end,
+                },
+            )
+            await session.execute(stmt)
+            await session.commit()
+        except Exception as e:  # noqa: BLE001 — Apex 元実装も DML 例外を catch して継続
+            await session.rollback()
+            errors.append(f"DML Error: {e}")
+            logger.error("batch_chunk_failed", error=str(e))
+
+    # finish() 相当: 通知
+    if admin_email:
+        body = (
+            f"月次集計バッチが完了しました。\n\n"
+            f"対象期間: {month_start} 〜 {month_end}\n"
+            f"処理店舗数: {stores_processed}\n"
+            f"処理訪問数: {visits_processed}\n"
         )
-        batch = result.scalars().all()
+        if errors:
+            body += "\n⚠️ エラー:\n" + "\n".join(errors)
+        notifier.send(EmailMessage(
+            to_address=admin_email,
+            subject=f"【月次集計完了】店舗訪問記録 {month_start} 〜 {month_end}",
+            body=body,
+        ))
 
-        if not batch:
-            break
+    logger.info(
+        "batch_complete",
+        stores=stores_processed,
+        visits=visits_processed,
+        errors=len(errors),
+    )
+    return BatchResult(stores_processed, visits_processed, errors)
 
-        # execute() 相当: バッチ処理
-        for record in batch:
-            await process_record(record)
-            total_processed += 1
 
-        await session.commit()
-        offset += BATCH_SIZE
-        logger.info("batch_progress", processed=total_processed)
-
-    # finish() 相当: 完了処理
-    logger.info("batch_complete", total=total_processed)
-    return {"processed": total_processed}
+# Helpers omitted — see actual implementation
 ```
+
+### 必須テストパターン（`tests/test_jobs.py`）
+
+| # | テスト | カバー範囲 |
+|---|-------|----------|
+| 1 | `test_batch_only_active_stores` | start() のフィルタ |
+| 2 | `test_batch_aggregates_submitted_approved_only` | execute() 集計の WHERE |
+| 3 | `test_batch_creates_zero_summary_for_stores_with_no_visits` | execute() のゼロ件処理 |
+| 4 | `test_batch_idempotent_on_rerun_via_on_conflict_do_update` | ★ 冪等性検証（同月 2 回実行で件数が増えない） |
+| 5 | `test_batch_finish_sends_admin_email` | finish() 通知 |
+| 6 | `test_batch_accepts_arbitrary_month_arg` | 任意月引数 |
 
 ## 5. Formula フィールド → 計算戦略
 
@@ -216,6 +350,104 @@ Apex テストクラスの `System.assertEquals()` / `System.assert()` は **移
 | `System.assert(condition, message)` | `assert condition, message` |
 | `try { ... } catch (AuraHandledException e)` | `with pytest.raises(HTTPException)` |
 | `System.runAs(user)` | テスト用の認証モック |
+
+## 9. Repository wiring パターン（ABC + 具象 + DI）
+
+> **MUST**: ABC だけ定義して `get_usecase` を `NotImplementedError` のまま提出するのは不合格。
+> production 起動時にすぐ 500 になり、`docker compose up` で実 API 検証ができない。
+> 必ず ABC + 具象 SQLAlchemy 実装 + `dependencies.py` での Depends チェーンの 3 点セットを揃える。
+
+### a) ABC + dataclass（`app/repository/<entity>_repository.py`）
+
+```python
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import date
+
+@dataclass
+class StoreVisitRecord:
+    id: str
+    store_id: str
+    visit_date: date
+    status: str
+    purpose: str
+
+class StoreVisitRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, visit_id: str) -> StoreVisitRecord | None: ...
+    @abstractmethod
+    async def list_visits(self, *, status: str | None = None, ...) -> list[StoreVisitRecord]: ...
+```
+
+### b) 具象 SQLAlchemy 実装（`app/repository/<entity>_repository_sqlalchemy.py`）
+
+```python
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import StoreVisit as StoreVisitORM
+from app.repository.store_visit_repository import (
+    StoreVisitRecord, StoreVisitRepository,
+)
+
+class SqlAlchemyStoreVisitRepository(StoreVisitRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_by_id(self, visit_id: str) -> StoreVisitRecord | None:
+        row = (await self.session.execute(
+            select(StoreVisitORM).where(StoreVisitORM.id == visit_id)
+        )).scalar_one_or_none()
+        return _to_record(row) if row else None
+
+    # ...
+```
+
+### c) DI チェーン（`app/dependencies.py`）
+
+```python
+from typing import Annotated
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import get_session
+from app.notifier import EmailNotifier, NoopNotifier
+from app.repository.store_visit_repository_sqlalchemy import (
+    SqlAlchemyStoreVisitRepository,
+)
+from app.usecase.store_visit_usecase import StoreVisitUsecase
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+def get_visit_repo(session: SessionDep) -> SqlAlchemyStoreVisitRepository:
+    return SqlAlchemyStoreVisitRepository(session)
+
+def get_notifier() -> EmailNotifier:
+    return NoopNotifier()  # production では SmtpNotifier 等に差し替え
+
+def get_usecase(
+    visit_repo: Annotated[SqlAlchemyStoreVisitRepository, Depends(get_visit_repo)],
+    # ... store_repo, user_repo
+    notifier: Annotated[EmailNotifier, Depends(get_notifier)],
+) -> StoreVisitUsecase:
+    return StoreVisitUsecase(
+        visit_repo=visit_repo, ..., notifier=notifier,
+    )
+```
+
+### d) router 側（テスト時は `app.dependency_overrides[get_usecase]` で上書き可能）
+
+```python
+from app.dependencies import get_usecase  # routers から見た import 元はここに統一
+
+@router.get("")
+async def list_visits(
+    usecase: Annotated[StoreVisitUsecase, Depends(get_usecase)],
+    ...
+): ...
+```
+
+---
 
 ## 8. よくある間違い（AI が陥りやすいミス）
 

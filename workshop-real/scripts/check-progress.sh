@@ -49,13 +49,14 @@ step0() {
 
   echo "  [データ]"
   local csv_count=0
-  for f in data/*.csv examples/data/*.csv 2>/dev/null; do
-    [ -f "$f" ] && ((csv_count++))
-  done
+  shopt -s nullglob
+  local csv_files=(data/*.csv examples/data/*.csv)
+  shopt -u nullglob
+  csv_count=${#csv_files[@]}
   if [ "$csv_count" -gt 0 ]; then
     echo -e "  ${GREEN}✅${NC} CSV ファイル: ${csv_count} 件"
-    for f in data/*.csv examples/data/*.csv 2>/dev/null; do
-      [ -f "$f" ] && echo "     $(basename "$f"): $(tail -n +2 "$f" | wc -l | tr -d ' ') レコード"
+    for f in "${csv_files[@]}"; do
+      echo "     $(basename "$f"): $(tail -n +2 "$f" | wc -l | tr -d ' ') レコード"
     done
     ((ok++))
   else

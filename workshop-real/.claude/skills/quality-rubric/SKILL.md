@@ -58,11 +58,46 @@ description: 各 Step の成果物をスコアリングする評価基準。migr
 
 | 軸 | 1 (不合格) | 2 (不十分) | 3 (合格ライン) | 4 (良好) | 5 (優秀) |
 |----|-----------|-----------|--------------|---------|---------|
-| **テスト品質** | テストなし or 全 FAIL | テストあるが50%未満 PASS | 全テスト PASS + カバレッジ 80%+ | Apex テストの全 assert が移植済み | パラメタライズ + エッジケース + エラーケース完備 |
-| **アーキテクチャ** | 3層分離なし（全部1ファイル） | 一部分離だが DI なし | router/usecase/repository 3層 + Depends() | ABC + 具象実装 + 型ヒント完備 | 3層 + DI + エラーハンドリング + structlog |
-| **コード品質** | ruff/mypy で大量エラー | ruff PASS だが mypy エラー多数 | ruff + mypy エラーなし | 上記 + Google docstring + 型ヒント全関数 | 上記 + bandit PASS + 構造化エラーレスポンス |
-| **Apex変換正確性** | ビジネスロジックが未実装 | CRUD のみ、ロジックなし | 主要ビジネスロジックが Python に移植 | Trigger → usecase 明示化 + ガバナ制限削除 | 全ロジック移植 + Batch → Cloud Run Jobs パターン |
-| **動作検証** | 起動しない | 起動するが API エラー | 全 API エンドポイントが正常レスポンス | docker-compose でコンテナ間通信 OK | 上記 + データ投入→CRUD→検証の E2E パス |
+| **テスト品質** | テストなし or 全 FAIL | テストあるが50%未満 PASS | 全テスト PASS + **`pytest --cov` でカバレッジ 80%+ を機械的に確認** + 具象 Repo の DB 統合テスト 1 件以上 | Apex テストの全 assert が移植済み + Batch ジョブのテスト（`tests/test_jobs.py`）あり | パラメタライズ + エッジケース + エラーケース完備 + 冪等性検証あり |
+| **アーキテクチャ** | 3層分離なし（全部1ファイル） | 一部分離だが DI なし | router/usecase/repository 3層 + Depends() + **ABC + 具象 SQLAlchemy 実装の両方が存在 + `get_usecase` が wire 済み（`NotImplementedError` なし）** | 上記 + 型ヒント完備 + `dependencies.py` で集約 | 3層 + DI + エラーハンドリング + structlog + `app/jobs/` で Batch も同じ DI パターン |
+| **コード品質** | ruff/mypy で大量エラー | ruff PASS だが mypy エラー多数 | ruff + mypy エラーなし（**`requirements-dev.txt` に mypy/pytest-cov/bandit を収録し実行可能な状態**） | 上記 + Google docstring + 型ヒント全関数 | 上記 + bandit PASS（HIGH/MEDIUM 0、LOW のみ理由付き `# nosec`）+ 構造化エラーレスポンス |
+| **Apex変換正確性** | ビジネスロジックが未実装 | CRUD のみ、ロジックなし | 主要ビジネスロジック + **対象 SFDC に Apex Batch クラスがある場合は `app/jobs/` に Python 実装あり**（無い場合は不問） | Trigger → usecase 明示化 + ガバナ制限削除 + Batch の冪等性 (`ON CONFLICT DO UPDATE`) 担保 | 全ロジック移植 + Batch → Cloud Run Jobs パターン + Cloud Scheduler 連携を README に記載 |
+| **動作検証** | 起動しない | 起動するが API エラー | 全 API エンドポイントが正常レスポンス + **production 起動時に `get_usecase` が NotImplementedError を出さない（DI wire 完了）** | docker-compose でコンテナ間通信 OK | 上記 + データ投入→CRUD→検証の E2E パス + Batch を `python -m app.jobs.<name>` で実行確認 |
+
+### Step 3 レビュー時の必須機械的確認
+
+レビュアー（`/review-gate 3` または `migration-reviewer` Agent）は、スコアを付ける前に以下を **機械的に確認** すること:
+
+```bash
+cd 03-code-modernization/output
+
+# A. 具象 Repository の存在（無ければアーキテクチャ ≤ 2、動作検証 ≤ 2）
+test -n "$(find app/repository -name '*sqlalchemy*' -o -name '*_impl*' -type f)" \
+  || echo "🔴 具象 Repository 実装なし"
+
+# B. get_usecase が wire 済みか（無ければ動作検証 ≤ 2）
+grep -rn "raise NotImplementedError" app/router app/dependencies.py app/main.py 2>/dev/null \
+  && echo "🔴 production DI が未完成"
+
+# C. Batch 移行の有無（対象 Apex に Batch がある場合のみ必須）
+APEX_BATCH=$(grep -rln "Database.Batchable" examples/force-app 2>/dev/null | wc -l)
+PY_BATCH=$(find app/jobs -name '*.py' ! -name '__init__.py' 2>/dev/null | wc -l)
+if [ "$APEX_BATCH" -gt 0 ] && [ "$PY_BATCH" -eq 0 ]; then
+  echo "🔴 Apex Batch ${APEX_BATCH} 件あるが Python 移植 0 件"
+fi
+
+# D. dev tools 収録（無ければコード品質 ≤ 2）
+grep -E '^(mypy|pytest-cov|bandit)' requirements-dev.txt 2>/dev/null \
+  || echo "🔴 requirements-dev.txt に mypy/pytest-cov/bandit が含まれない"
+
+# E. 静的解析・カバレッジが PASS するか
+.venv/bin/pip install -q -r requirements-dev.txt 2>/dev/null
+.venv/bin/mypy app/
+.venv/bin/pytest --cov=app --cov-fail-under=80
+.venv/bin/bandit -r app/ -ll
+```
+
+A〜E のいずれかが ❌ の場合、関連評価軸のスコアを 1 段階ずつ下げる。
 
 ---
 
