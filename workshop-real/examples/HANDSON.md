@@ -358,18 +358,34 @@ ORDER BY tc.table_name;
 /import-data ./examples
 ```
 
-**AI の挙動**:
+**AI が自律的に実行する内容**:
 1. `examples/data/` 配下の CSV を検出:
    - `Store__c.csv` — 店舗マスタ
    - `StoreVisit__c.csv` — 訪問記録
    - `VisitDetail__c.csv` — 訪問詳細
-2. DDL のカラム定義から CSV ヘッダー → PostgreSQL カラム名のマッピングを自動生成
-3. FK 依存関係を考慮した投入順序: `stores` → `store_visits` → `visit_details`
-4. Python スクリプト `import_data.py` を生成し、実行
+2. **`requirements-import.txt`** を生成（`psycopg2-binary` 等の依存定義）
+3. DDL のカラム定義から CSV ヘッダー → PostgreSQL カラム名のマッピングを自動生成
+4. FK 依存関係を考慮した投入順序: `stores` → `store_visits` → `visit_details`
+5. Python スクリプト `import_data.py` を生成
+6. **依存パッケージをインストール** (`pip install -r requirements-import.txt`)
+7. **スクリプトを実行** してデータを投入
+8. **投入結果を検証** （テーブル別レコード数 vs CSV 行数の一致確認）
 
-**出力**: `02-schema-migration/output/import_data.py`
+**出力**:
+```
+02-schema-migration/output/
+├── requirements-import.txt    ← 依存定義（psycopg2-binary 等）
+├── import_data.py             ← CSV → PostgreSQL 投入スクリプト
+└── data_validation.sql        ← 整合性チェッククエリ
+```
 
-### 2.5 データ投入結果の確認
+> [!NOTE]
+> `/import-data` はスクリプト生成だけでなく、**実行と検証まで自律的に完了** します。
+> エラーが発生した場合は AI が自動でスクリプトを修正し、再実行します。
+
+### 2.5 データ投入結果の確認（人間による確認）
+
+AI が出力した投入サマリーを確認してください。手動で追加確認する場合:
 
 ```bash
 # テーブル別レコード数を確認
