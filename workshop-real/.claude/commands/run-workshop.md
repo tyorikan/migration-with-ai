@@ -48,8 +48,10 @@
 4. Dockerfile + requirements.txt を生成
 5. **セルフレビュー**: テストシナリオの全項目がテストコードにカバーされているか確認
 
-### Step 5: ADR 生成
+### Step 5: ADR + ロードマップ + アクションアイテム生成
 1. 全 Step の成果物を踏まえた ADR を生成 → `05-roadmap/output/adr.md`
+2. 本日の実績ベースの移行ロードマップを生成 → `05-roadmap/output/roadmap.md`
+3. ワークショップ後のアクションアイテム一覧を生成 → `05-roadmap/output/action_items.md`
 
 ## 実行ルール
 
@@ -97,3 +99,5 @@
 - [ ] `03-code-modernization/output/tests/` (テストコード)
 - [ ] `03-code-modernization/output/Dockerfile`
 - [ ] `05-roadmap/output/adr.md`
+- [ ] `05-roadmap/output/roadmap.md`
+- [ ] `05-roadmap/output/action_items.md`

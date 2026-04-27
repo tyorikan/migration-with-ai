@@ -681,14 +681,20 @@ open htmlcov/index.html  # ブラウザで確認
 ```
 
 **AI の挙動**:
-1. Agent `migration-reviewer` が全 Step の成果物を横断参照
-2. 以下の ADR を生成:
+1. Agent `migration-reviewer` が全 Step の成果物 + `workshop-state.json` を横断参照
+2. 以下の ADR を生成（→ `05-roadmap/output/adr.md`）:
    - ADR-001: Backend 言語選定（Python / FastAPI）
    - ADR-002: DB エンジン選定（Cloud SQL PostgreSQL）
    - ADR-003: コンテナ基盤選定（Cloud Run）
    - ADR-004: AI 駆動開発の品質保証方針
    - ADR-005: データ移行方式
 3. SFDC → Google Cloud サービスマッピング図を生成
+4. **本日の実績ベース** の移行ロードマップを生成（→ `05-roadmap/output/roadmap.md`）:
+   - Mermaid `gantt` で Phase 0 〜 Phase 3 の期間を可視化
+   - 本日の Apex 行数 / 所要時間 / スコアから全量移行の見立てを定量化
+5. アクションアイテム一覧を生成（→ `05-roadmap/output/action_items.md`）:
+   - 担当ロール / 期限目安 / 優先度 / 依存関係 / ステータス付き
+   - Phase 0 完了報告会 / Phase 1 キックオフのマイルストーン枠
 
 ---
 
@@ -783,6 +789,8 @@ rm -rf 03-code-modernization/output/.venv
 | pytest テスト | `03-code-modernization/output/tests/` | 3 |
 | Dockerfile | `03-code-modernization/output/Dockerfile` | 3 |
 | ADR | `05-roadmap/output/adr.md` | 5 |
+| 移行ロードマップ | `05-roadmap/output/roadmap.md` | 5 |
+| アクションアイテム一覧 | `05-roadmap/output/action_items.md` | 5 |
 | 品質レビューレポート | `XX-xxx/output/review_report.md` | 各 Step |
 
 ---

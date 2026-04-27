@@ -202,7 +202,7 @@ workshop-real/
 | 2 | `/import-data <path>` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
 | 3 | `/extract-test-scenarios <path>` | Apex からテストシナリオを抽出 |
 | 3 | `/generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
-| 5 | `/generate-adr` | ADR（技術選定の意思決定記録）を自動生成 |
+| 5 | `/generate-adr` | ADR（技術選定の意思決定記録）+ 移行ロードマップ + アクションアイテム一覧を自動生成 |
 | 全体 | `/run-workshop <path>` | Step 1→2→3→5 を順序通りにチェーン実行（オーケストレーション） |
 | 品質 | `/review-gate [N]` | 🆕 独立コンテキストでの品質ゲートチェック（`/clear` 後に実行） |
 
@@ -405,7 +405,7 @@ flowchart LR
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/generate-adr` | `migration-reviewer` | 全 Skills | Step 1-3 の成果物を横断レビュー → 技術選定の ADR 生成（言語/DB/基盤/品質保証/データ移行方式）。SFDC→GCP サービスマッピング図 | `05-roadmap/output/adr.md` |
+| `/generate-adr` | `migration-reviewer` | 全 Skills | Step 1-3 の成果物を横断レビュー → ADR 生成（言語/DB/基盤/品質保証/データ移行方式、SFDC→GCP マッピング図）+ 本日の実績ベースの移行ロードマップ（Phase 0-3、Mermaid gantt）+ アクションアイテム一覧（担当・期限・依存・優先度付き） | `05-roadmap/output/adr.md`<br/>`05-roadmap/output/roadmap.md`<br/>`05-roadmap/output/action_items.md` |
 | （自動実行） | `migration-reviewer` | 全 Skills | 各 Step 完了時にゲートチェック実行。Step 間のデータ連携整合性（オブジェクト⊆テーブル⊆モデル）を検証 | レビューレポート |
 
 ---

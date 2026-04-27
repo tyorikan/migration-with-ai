@@ -13,9 +13,8 @@ services:
       - "5432:5432"
     volumes:
       # ワークショップのディレクトリをマウント（SQL / CSV / スクリプトを直接実行可能に）
+      # SFDC エクスポート CSV（./data/）も含めて /workspace 配下で参照可能
       - .:/workspace:ro
-      # SFDC エクスポート CSV（Step 2 のデータ移行で使用）
-      - ./data:/workspace/data:ro
       # データ永続化
       - pgdata:/var/lib/postgresql/data
     healthcheck:
