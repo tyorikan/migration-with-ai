@@ -205,16 +205,20 @@ check_step2_to_step3() {
 
   if [ -z "$missing" ]; then
     echo -e "  ${GREEN}✅${NC} 全テーブルに対応するモデルが存在"
-    ((TOTAL_OK++))
+    ((TOTAL_OK++)) || true
   else
     echo -e "  ${RED}❌${NC} 以下のテーブルに対応モデルがありません:"
     echo "$missing" | while read -r m; do [ -n "$m" ] && echo "     - $m"; done
-    ((TOTAL_FAIL++))
+    ((TOTAL_FAIL++)) || true
   fi
 }
 
 # -------------------------------------------------------
 # Step 3: テスト品質チェック（pytest 実行）
+# -------------------------------------------------------
+# Python 解決順:
+#   1. 03-code-modernization/output/.venv/bin/python があればそれを使う
+#   2. なければシステム python3 にフォールバック
 # -------------------------------------------------------
 check_step3_tests() {
   echo -e "\n${BLUE}━━━ Step 3: テスト実行結果 ━━━${NC}"
@@ -231,26 +235,33 @@ check_step3_tests() {
     return
   fi
 
+  local py
+  if [ -x "$WORKSHOP_DIR/$output_dir/.venv/bin/python" ]; then
+    py="$WORKSHOP_DIR/$output_dir/.venv/bin/python"
+    echo "  [Python] $output_dir/.venv/bin/python (venv)"
+  else
+    py="python3"
+    echo "  [Python] python3 (system) — venv 未検出"
+  fi
+
   echo "  [pytest 実行]"
-  local test_result
-  if cd "$output_dir" && \
-     python3 -m pytest tests/ -v --tb=short 2>&1; then
+  if cd "$output_dir" && "$py" -m pytest tests/ -v --tb=short 2>&1; then
     echo -e "  ${GREEN}✅${NC} 全テスト PASS"
-    ((TOTAL_OK++))
+    ((TOTAL_OK++)) || true
   else
     echo -e "  ${RED}❌${NC} テスト FAIL あり"
-    ((TOTAL_FAIL++))
+    ((TOTAL_FAIL++)) || true
   fi
   cd "$WORKSHOP_DIR"
 
   # ruff チェック
   echo "  [ruff check]"
-  if cd "$output_dir" && python3 -m ruff check app/ tests/ 2>&1; then
+  if cd "$output_dir" && "$py" -m ruff check app/ tests/ 2>&1; then
     echo -e "  ${GREEN}✅${NC} ruff エラーなし"
-    ((TOTAL_OK++))
+    ((TOTAL_OK++)) || true
   else
     echo -e "  ${RED}❌${NC} ruff エラーあり"
-    ((TOTAL_FAIL++))
+    ((TOTAL_FAIL++)) || true
   fi
   cd "$WORKSHOP_DIR"
 }
