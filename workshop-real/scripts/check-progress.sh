@@ -207,18 +207,35 @@ step3() {
 
 # -------------------------------------------------------
 step4() {
-  echo -e "\n${BLUE}━━━ Step 4: 品質評価 ━━━${NC}"
-  echo "  (議論ベースの Step — 成果物チェックなし)"
+  echo -e "\n${BLUE}━━━ Step 4: A2UI フロントエンド生成 ━━━${NC}"
+  local ok=0 fail=0
+
+  if check_file "04-frontend-a2ui/output/main.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "04-frontend-a2ui/output/requirements.txt"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_dir "04-frontend-a2ui/output/agent"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "04-frontend-a2ui/output/agent/agent.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "04-frontend-a2ui/output/agent/tools.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "04-frontend-a2ui/output/agent/prompt_builder.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_dir "04-frontend-a2ui/output/renderer"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "04-frontend-a2ui/output/renderer/package.json"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+
+  echo -e "\n  ${GREEN}${ok} passed${NC}, ${RED}${fail} failed${NC}"
 }
 
 # -------------------------------------------------------
 step5() {
-  echo -e "\n${BLUE}━━━ Step 5: ロードマップ ━━━${NC}"
+  echo -e "\n${BLUE}━━━ Step 5: 品質評価 ━━━${NC}"
+  echo "  (議論ベースの Step — 成果物チェックなし)"
+}
+
+# -------------------------------------------------------
+step6() {
+  echo -e "\n${BLUE}━━━ Step 6: ロードマップ ━━━${NC}"
   local ok=0 fail=0
 
-  if check_file "05-roadmap/output/adr.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_file "05-roadmap/output/roadmap.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_file "05-roadmap/output/action_items.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "06-roadmap/output/adr.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "06-roadmap/output/roadmap.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  if check_file "06-roadmap/output/action_items.md"; then ok=$((ok+1)); else fail=$((fail+1)); fi
 
   echo -e "\n  ${GREEN}${ok} passed${NC}, ${RED}${fail} failed${NC}"
 }
@@ -241,6 +258,7 @@ case "$STEP" in
   3) step3 ;;
   4) step4 ;;
   5) step5 ;;
+  6) step6 ;;
   all)
     step0
     step1
@@ -248,9 +266,10 @@ case "$STEP" in
     step3
     step4
     step5
+    step6
     ;;
   *)
-    echo "Usage: $0 [0|1|2|3|4|5|all]"
+    echo "Usage: $0 [0|1|2|3|4|5|6|all]"
     exit 1
     ;;
 esac

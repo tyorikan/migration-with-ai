@@ -24,7 +24,7 @@
 | **AI ツール** | Claude Code via Vertex AI（Claude Opus model） |
 | **参加者** | PM、アーキテクト、SE（パートナー含）11名以上 |
 | **Backend 言語** | Python（FastAPI） |
-| **Frontend** | TypeScript（Next.js）— 本ワークショップでは Backend に集中 |
+| **Frontend** | A2UI + Lit Renderer（Step 4 で AI が自動生成） |
 | **DB** | Cloud SQL（PostgreSQL） |
 | **実行環境** | 参加者のローカル環境 or Cloud Shell |
 | **コンテナ管理** | docker-compose（PostgreSQL + App のコンテナ間通信） |
@@ -52,9 +52,10 @@
 | 13:00–13:45 | **Step 2** | DB スキーマ移行＋実データ投入 | DDL 変換 → SFDC CSV 変換・投入 → クエリ検証 | DDL、データ変換スクリプト、SOQL→SQL |
 | 13:45–14:45 | **Step 3** | TDD コードモダナイズ PoC（Python） | テストシナリオ→🔴RED→🟢GREEN→🔵REFACTOR | テスト＋実装＋コンテナ間CRUD検証 |
 | 14:45–15:00 | | ☕ 休憩 | | |
-| 15:00–15:45 | **Step 4** | AI 成果物の品質評価＆デリバリー戦略 | 統合テスト＋品質フレームワーク議論 | 品質評価フレームワーク |
-| 15:45–16:30 | **Step 5** | 移行ロードマップ策定 | ADR 自動生成＋Phase 計画 | 移行計画書、ADR |
-| 16:30–17:00 | **Step 6** | クロージング＆ネクストステップ | アクションアイテム確定 | アクションアイテム一覧 |
+| 15:00–15:30 | **Step 4** 🆕 | **A2UI フロントエンド生成** | ADK Agent + Lit Renderer で管理画面を自動構築 | A2UI Agent＋リッチ管理画面 |
+| 15:30–16:00 | **Step 5** | AI 成果物の品質評価＆デリバリー戦略 | 統合テスト＋品質フレームワーク議論 | 品質評価フレームワーク |
+| 16:00–16:45 | **Step 6** | 移行ロードマップ策定 | ADR 自動生成＋Phase 計画 | 移行計画書、ADR |
+| 16:45–17:00 | **Step 7** | クロージング＆ネクストステップ | アクションアイテム確定 | アクションアイテム一覧 |
 
 ### 全体の流れ
 
@@ -63,13 +64,15 @@ graph LR
     S0["Step 0<br/>キックオフ<br/>(30min)"] --> S1["Step 1<br/>🔑 設計逆起こし<br/>(90min)"]
     S1 --> S2["Step 2<br/>DB スキーマ<br/>+ データ検証<br/>(45min)"]
     S2 --> S3["Step 3<br/>TDD コード変換<br/>(60min)"]
-    S3 --> S4["Step 4<br/>品質評価<br/>(45min)"]
-    S4 --> S5["Step 5<br/>ロードマップ<br/>(45min)"]
-    S5 --> S6["Step 6<br/>クロージング<br/>(30min)"]
+    S3 --> S4["Step 4<br/>🆕 A2UI Frontend<br/>(30min)"]
+    S4 --> S5["Step 5<br/>品質評価<br/>(30min)"]
+    S5 --> S6["Step 6<br/>ロードマップ<br/>(45min)"]
+    S6 --> S7["Step 7<br/>クロージング<br/>(15min)"]
 
     style S1 fill:#34A853,color:#fff
     style S3 fill:#4285F4,color:#fff
-    style S4 fill:#FBBC04,color:#000
+    style S4 fill:#EA4335,color:#fff
+    style S5 fill:#FBBC04,color:#000
 ```
 
 > 🟢 Step 1 がキモ — ここで生成した設計書が残りの Step すべてのインプットになる。
@@ -97,7 +100,7 @@ graph LR
 # Step 2: DB だけ起動して DDL 適用・データ投入
 docker compose up -d db
 
-# Step 3-4: アプリも含めて起動、コンテナ間 CRUD 検証
+# Step 3-4: アプリ + A2UI Renderer も含めて起動、コンテナ間 CRUD 検証
 docker compose up -d --build
 
 # クリーンアップ
@@ -127,18 +130,21 @@ workshop-real/
 │   │   ├── import-data.md             ←   /import-data（Step 2）
 │   │   ├── extract-test-scenarios.md  ←   /extract-test-scenarios（Step 3）
 │   │   ├── generate-and-implement.md  ←   /generate-and-implement（Step 3）
-│   │   └── generate-adr.md            ←   /generate-adr（Step 5）
+│   │   ├── generate-a2ui-frontend.md  ←   /generate-a2ui-frontend（Step 4）🆕
+│   │   └── generate-adr.md            ←   /generate-adr（Step 6）
 │   ├── agents/                        ← 🤖 特化型エージェント
 │   │   ├── sfdc-analyzer.md           ←   Step 1: SFDX 分析 → 設計書生成
 │   │   ├── schema-converter.md        ←   Step 2: DDL 生成 + データ移行
 │   │   ├── python-modernizer.md       ←   Step 3: TDD で Apex → Python 変換
-│   │   ├── migration-reviewer.md      ←   Step 4-5: スコアリングレビュー + ゲートチェック
+│   │   ├── a2ui-frontend-generator.md ←   Step 4: A2UI フロントエンド生成 🆕
+│   │   ├── migration-reviewer.md      ←   Step 5-6: スコアリングレビュー + ゲートチェック
 │   └── skills/                        ← 📖 ドメインナレッジモジュール
 │       ├── reverse-engineering/SKILL.md   ← 逆起こしルール + 出力フォーマット
 │       ├── sfdc-schema-migration/SKILL.md ← 型マッピング + 命名規則 + DDL テンプレート
 │       ├── sfdc-to-python/SKILL.md        ← ガバナ制限/Trigger/Batch 変換パターン
 │       ├── tdd-modernize/SKILL.md         ← Apex テスト → pytest + TDD ワークフロー
-│       └── quality-rubric/SKILL.md        ← 🆕 成果物スコアリング基準（1-5 評価）
+│       ├── a2ui-frontend/SKILL.md         ← 🆕 A2UI 変換パターン + ADK 統合
+│       └── quality-rubric/SKILL.md        ← 成果物スコアリング基準（1-5 評価）
 ├── workshop-state.json                ← 🆕 進捗・メトリクス・レビュースコアの状態管理
 ├── scripts/
 │   ├── check-progress.sh             ← 📊 進行チェックスクリプト
@@ -161,10 +167,13 @@ workshop-real/
 ├── 03-code-modernization/
 │   ├── README.md                      ← TDD コードモダナイズ PoC ガイド
 │   └── output/                        ← Python プロジェクト + Dockerfile
-├── 04-quality-and-delivery/
+├── 04-frontend-a2ui/                  ← 🆕 A2UI フロントエンド生成
+│   ├── README.md                      ← ADK Agent + Lit Renderer ガイド
+│   └── output/                        ← Agent コード + Renderer
+├── 05-quality-and-delivery/           ← 旧 Step 4
 │   ├── README.md                      ← AI 成果物の品質評価＆デリバリー戦略
 │   └── output/
-├── 05-roadmap/
+├── 06-roadmap/                        ← 旧 Step 5
 │   ├── README.md                      ← 移行ロードマップ策定
 │   └── output/                        ← ADR、ロードマップ
 └── examples/                          ← サンプル SFDX プロジェクト（検証用）
@@ -202,9 +211,10 @@ workshop-real/
 | 2 | `/import-data <path>` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
 | 3 | `/extract-test-scenarios <path>` | Apex からテストシナリオを抽出 |
 | 3 | `/generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
-| 5 | `/generate-adr` | ADR（技術選定の意思決定記録）+ 移行ロードマップ + アクションアイテム一覧を自動生成 |
-| 全体 | `/run-workshop <path>` | Step 1→2→3→5 を順序通りにチェーン実行（オーケストレーション） |
-| 品質 | `/review-gate [N]` | 🆕 独立コンテキストでの品質ゲートチェック（`/clear` 後に実行） |
+| 4 | `/generate-a2ui-frontend` | 🆕 ADK Agent + Lit Renderer で A2UI フロントエンドを自動生成 |
+| 6 | `/generate-adr` | ADR（技術選定の意思決定記録）+ 移行ロードマップ + アクションアイテム一覧を自動生成 |
+| 全体 | `/run-workshop <path>` | Step 1→2→3→4→6 を順序通りにチェーン実行（オーケストレーション） |
+| 品質 | `/review-gate [N]` | 独立コンテキストでの品質ゲートチェック（`/clear` 後に実行） |
 
 ---
 
@@ -405,7 +415,8 @@ flowchart LR
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/generate-adr` | `migration-reviewer` | 全 Skills | Step 1-3 の成果物を横断レビュー → ADR 生成（言語/DB/基盤/品質保証/データ移行方式、SFDC→GCP マッピング図）+ 本日の実績ベースの移行ロードマップ（Phase 0-3、Mermaid gantt）+ アクションアイテム一覧（担当・期限・依存・優先度付き） | `05-roadmap/output/adr.md`<br/>`05-roadmap/output/roadmap.md`<br/>`05-roadmap/output/action_items.md` |
+| `/generate-a2ui-frontend` | `a2ui-frontend-generator` | `a2ui-frontend` | Step 3 の FastAPI Router + Pydantic Schema を分析 → ADK Agent + A2UI JSON 生成 + `get_fast_api_app()` で既存 Router マージ + Lit Renderer セットアップ | `04-frontend-a2ui/output/` |
+| `/generate-adr` | `migration-reviewer` | 全 Skills | Step 1-4 の成果物を横断レビュー → ADR 生成（言語/DB/基盤/品質保証/データ移行方式/フロントエンド、SFDC→GCP マッピング図）+ 本日の実績ベースの移行ロードマップ（Phase 0-3、Mermaid gantt）+ アクションアイテム一覧（担当・期限・依存・優先度付き） | `06-roadmap/output/adr.md`<br/>`06-roadmap/output/roadmap.md`<br/>`06-roadmap/output/action_items.md` |
 | （自動実行） | `migration-reviewer` | 全 Skills | 各 Step 完了時にゲートチェック実行。Step 間のデータ連携整合性（オブジェクト⊆テーブル⊆モデル）を検証 | レビューレポート |
 
 ---
@@ -414,7 +425,7 @@ flowchart LR
 
 | コマンド | 挙動 |
 |---------|------|
-| `/run-workshop` | Step 1→2→3→5 を自動チェーン実行。各 Step 完了後に `migration-reviewer` Agent でゲートチェックを行い、FAIL なら自動修正ループを回してから次の Step へ進む |
+| `/run-workshop` | Step 1→2→3→4→6 を自動チェーン実行。各 Step 完了後に `migration-reviewer` Agent でゲートチェックを行い、FAIL なら自動修正ループを回してから次の Step へ進む |
 
 ```mermaid
 flowchart TD
@@ -438,8 +449,13 @@ flowchart TD
         S3R["migration-reviewer<br/>ゲートチェック"]
     end
 
-    subgraph "Step 5"
-        S5A["migration-reviewer Agent<br/>ADR 生成"]
+    subgraph "Step 4 🆕"
+        S4A["a2ui-frontend-generator Agent"]
+        S4R["migration-reviewer<br/>ゲートチェック"]
+    end
+
+    subgraph "Step 6"
+        S6A["migration-reviewer Agent<br/>ADR 生成"]
     end
 
     RW --> S1A --> S1R
@@ -449,9 +465,12 @@ flowchart TD
     S2R -->|"✅ PASS"| S3A
     S2R -->|"❌ FAIL"| S2A
     S3A --> S3R
-    S3R -->|"✅ PASS"| S5A
+    S3R -->|"✅ PASS"| S4A
     S3R -->|"❌ FAIL"| S3A
-    S5A --> DONE["✅ 全成果物完成"]
+    S4A --> S4R
+    S4R -->|"✅ PASS"| S6A
+    S4R -->|"❌ FAIL"| S4A
+    S6A --> DONE["✅ 全成果物完成"]
 
     style RW fill:#4285F4,color:#fff
     style DONE fill:#34A853,color:#fff
@@ -487,8 +506,9 @@ flowchart TD
 | 1 | [AI 設計逆起こし](./01-reverse-engineering/README.md) | `/reverse-engineer`<br/>`/assess-migration` | `sfdc-analyzer` | `reverse-engineering` |
 | 2 | [DB スキーマ移行](./02-schema-migration/README.md) | `/schema-convert`<br/>`/import-data` | `schema-converter` | `sfdc-schema-migration` |
 | 3 | [TDD コードモダナイズ](./03-code-modernization/README.md) | `/extract-test-scenarios`<br/>`/generate-and-implement` | `python-modernizer` | `sfdc-to-python`<br/>`tdd-modernize` |
-| 4 | [品質評価＆デリバリー](./04-quality-and-delivery/README.md) | — | `migration-reviewer` | 全 Skills |
-| 5 | [移行ロードマップ](./05-roadmap/README.md) | `/generate-adr` | `migration-reviewer` | 全 Skills |
+| 4 | [🆕 A2UI フロントエンド生成](./04-frontend-a2ui/README.md) | `/generate-a2ui-frontend` | `a2ui-frontend-generator` | `a2ui-frontend` |
+| 5 | [品質評価＆デリバリー](./05-quality-and-delivery/README.md) | — | `migration-reviewer` | 全 Skills |
+| 6 | [移行ロードマップ](./06-roadmap/README.md) | `/generate-adr` | `migration-reviewer` | 全 Skills |
 
 ---
 

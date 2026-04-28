@@ -1,4 +1,4 @@
-# Step 4: AI 成果物の品質評価＆デリバリー戦略（15:00 – 15:45）
+# Step 5: AI 成果物の品質評価＆デリバリー戦略（15:30 – 16:00）
 
 > [!NOTE]
 > コンテナ化は Step 3 で完了済み。本 Step では **AI 駆動開発の成果物をどう評価すべきか** にフォーカスする。
@@ -13,7 +13,7 @@
 
 ---
 
-## 4-1. docker-compose 統合テスト（15分）
+## 5-1. docker-compose 統合テスト（15分）
 
 ### テスト実行
 
@@ -41,7 +41,7 @@ docker compose run --rm app bandit -r app/
 
 ---
 
-## 4-2. ワークショップの品質実績確認（10分）
+## 5-2. ワークショップの品質実績確認（10分）
 
 > ワークショップ中に実施した品質チェックの結果を、`workshop-state.json` から集計する。
 
@@ -59,11 +59,12 @@ cat workshop-state.json | jq '.steps'
 | Step 2: 独立コンテキストレビュー | `/review-gate 2` | ☐ PASS / FAIL |
 | Step 3: TDD（テスト先行） | `pytest -v` | ☐ X 件 PASS |
 | Step 3: 独立コンテキストレビュー | `/review-gate 3` | ☐ PASS / FAIL |
+| Step 4: A2UI フロントエンド検証 | `/review-gate 4` | ☐ PASS / FAIL |
 | 統合テスト（docker-compose） | `pytest tests/` | ☐ CRUD 全操作成功 |
 
 ---
 
-## 4-3. 品質ゲートのフレームワーク議論（20分）— ディスカッション
+## 5-3. 品質ゲートのフレームワーク議論（20分）— ディスカッション
 
 > [!IMPORTANT]
 > AI がコードを生成する時代において、**どこに品質ゲートを設置すべきか**？
@@ -157,9 +158,9 @@ graph LR
 
 ---
 
-## ✅ Step 4 完了チェック
+## ✅ Step 5 完了チェック
 
 - [ ] 統合テストが docker-compose 上で PASS
 - [ ] 品質ゲートのレベル（L0〜L7）について合意
 - [ ] CI パイプラインに組み込むゲートの方針が決定
-- [ ] `workshop-state.json` に Step 4 の結果が記録されている
+- [ ] `workshop-state.json` に Step 5 の結果が記録されている

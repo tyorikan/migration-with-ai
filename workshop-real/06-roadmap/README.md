@@ -1,4 +1,4 @@
-# Step 5: 移行ロードマップ策定（15:45 – 16:30）
+# Step 6: 移行ロードマップ策定（16:00 – 16:45）
 
 ## 🎯 ゴール
 
@@ -6,13 +6,13 @@
 
 | 成果物 | 出力先 |
 |--------|--------|
-| ADR（技術選定の意思決定記録） | `05-roadmap/output/adr.md` |
-| 移行ロードマップ | `05-roadmap/output/roadmap.md` |
-| アクションアイテム一覧 | `05-roadmap/output/action_items.md` |
+| ADR（技術選定の意思決定記録） | `06-roadmap/output/adr.md` |
+| 移行ロードマップ | `06-roadmap/output/roadmap.md` |
+| アクションアイテム一覧 | `06-roadmap/output/action_items.md` |
 
 ---
 
-## 5-1. ADR の自動生成（15分）
+## 6-1. ADR の自動生成（15分）
 
 > **何をするか**: ワークショップで決定したアーキテクチャ方針を、ADR（Architecture Decision Record）として記録する。
 > 全 Step の成果物を AI に渡し、議論と結果を構造化されたドキュメントに変換する。
@@ -25,7 +25,8 @@
 - `01-reverse-engineering/output/`（設計書、影響分析）
 - `02-schema-migration/output/`（DDL、データ移行）
 - `03-code-modernization/output/`（Python プロジェクト、テスト）
-- `04-quality-and-delivery/output/`（品質評価）
+- `04-frontend-a2ui/output/`（A2UI Agent + Renderer）
+- `05-quality-and-delivery/output/`（品質評価）
 
 **生成される ADR 一覧**:
 
@@ -39,7 +40,7 @@
 
 ---
 
-## 5-2. Phase 分割ロードマップ（15分）
+## 6-2. Phase 分割ロードマップ（15分）
 
 ### 提案ロードマップ
 
@@ -90,7 +91,7 @@ gantt
 
 ---
 
-## 5-3. ネクストステップの確定（15分）
+## 6-3. ネクストステップの確定（15分）
 
 ### 💬 議論ポイント
 
@@ -119,7 +120,7 @@ gantt
 
 ---
 
-## Step 6: クロージング（16:30 – 17:00）
+## Step 7: クロージング（16:45 – 17:00）
 
 ### 本日の振り返り
 
@@ -129,7 +130,7 @@ echo "==========================================="
 echo "🎯 全 Step 成果物チェック"
 echo "==========================================="
 
-for dir in 01-reverse-engineering 02-schema-migration 03-code-modernization 04-quality-and-delivery 05-roadmap; do
+for dir in 01-reverse-engineering 02-schema-migration 03-code-modernization 04-frontend-a2ui 05-quality-and-delivery 06-roadmap; do
   echo ""
   echo "--- $dir ---"
   if [ -d "$dir/output" ]; then
@@ -161,7 +162,8 @@ cat workshop-state.json | jq '{
   step1: .steps.step1.review.score,
   step2: .steps.step2.review.score,
   step3: .steps.step3.review.score,
-  step5: .steps.step5.review.score,
+  step4: .steps.step4.review.score,
+  step6: .steps.step6.review.score,
   overall: ([.steps[].review.score | select(. != null)] | add / length)
 }'
 

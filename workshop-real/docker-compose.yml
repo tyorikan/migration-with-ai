@@ -47,5 +47,24 @@ services:
     volumes:
       - ./03-code-modernization/output:/app:ro
 
+  # -------------------------------------------------------
+  # 🎨 A2UI Lit Renderer — フロントエンド（Step 4 で有効化）
+  # -------------------------------------------------------
+  # Step 4 の /generate-a2ui-frontend 実行後に有効化
+  a2ui-renderer:
+    build:
+      context: ./04-frontend-a2ui/output/renderer
+      dockerfile: Dockerfile
+    container_name: sfdc-migration-a2ui
+    ports:
+      - "5173:5173"
+    environment:
+      # Agent の接続先（app コンテナ内の ADK エンドポイント）
+      AGENT_URL: http://app:8080
+    depends_on:
+      - app
+    profiles:
+      - frontend  # docker compose --profile frontend up で有効化
+
 volumes:
   pgdata:

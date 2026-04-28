@@ -105,12 +105,36 @@
         "feedback_file": null
       }
     },
-    "step5": {
+    "step4": {
+      "status": "not_started",
+      "phases": {
+        "agent": {
+          "status": "not_started",
+          "output": "04-frontend-a2ui/output/agent/"
+        },
+        "renderer": {
+          "status": "not_started",
+          "output": "04-frontend-a2ui/output/renderer/"
+        }
+      },
+      "metrics": {
+        "agent_tools_count": null,
+        "a2ui_components_used": null,
+        "rest_api_endpoints_mapped": null
+      },
+      "review": {
+        "score": null,
+        "gate_passed": false,
+        "reviewed_at": null,
+        "feedback_file": null
+      }
+    },
+    "step6": {
       "status": "not_started",
       "phases": {
         "adr": {
           "status": "not_started",
-          "output": "05-roadmap/output/adr.md"
+          "output": "06-roadmap/output/adr.md"
         }
       },
       "review": {

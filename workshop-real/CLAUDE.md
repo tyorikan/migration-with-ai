@@ -55,8 +55,9 @@ workshop-real/
 ├── 01-reverse-engineering/output/     ← システム概要書、ER図、API仕様
 ├── 02-schema-migration/output/        ← DDL、データ変換スクリプト、SQL
 ├── 03-code-modernization/output/      ← Python プロジェクト + テスト
-├── 04-quality-and-delivery/output/    ← 品質評価結果
-├── 05-roadmap/output/                 ← ADR、ロードマップ
+├── 04-frontend-a2ui/output/           ← A2UI Agent + Lit Renderer
+├── 05-quality-and-delivery/output/    ← 品質評価結果
+├── 06-roadmap/output/                 ← ADR、ロードマップ
 ├── examples/                          ← サンプル SFDX プロジェクト（検証用）
 └── data/                              ← SFDC エクスポート CSV
 ```
@@ -69,7 +70,9 @@ workshop-real/
 | Step 2 → Step 3 | `02-schema-migration/output/generated_ddl.sql`（テーブル定義） |
 | Step 1 → Step 3 | `01-reverse-engineering/output/system_overview.md`（API仕様） |
 | Step 1 → Step 5 | `01-reverse-engineering/output/migration_assessment.md`（影響分析） |
-| Step 3 → Step 4 | `03-code-modernization/output/tests/`（テストコード） |
+| Step 3 → Step 4 | `03-code-modernization/output/` **丸ごとコピー** → `04-frontend-a2ui/output/` に拡張（最終成果物） |
+| Step 1 → Step 4 | `01-reverse-engineering/output/system_overview.md`（API仕様・エンティティ一覧） |
+| Step 4 → Step 5 | `04-frontend-a2ui/output/`（Backend + A2UI Agent + Renderer = 自己完結デプロイ可能） |
 
 ## SFDC → PostgreSQL 変換ルール
 
@@ -119,6 +122,7 @@ docker compose down -v
 | `sfdc-schema-migration` | SFDC → PostgreSQL DDL 変換ルール（命名規則、型マッピング、データ移行） | Step 2: スキーマ変換時 |
 | `reverse-engineering` | SFDC ソースコードからの設計書逆起こしルール | Step 1: 逆起こし時 |
 | `tdd-modernize` | Apex テスト → pytest 変換 + TDD ワークフロー | Step 3: テスト駆動開発時 |
+| `a2ui-frontend` | A2UI コンポーネント変換パターン + ADK 統合 | Step 4: フロントエンド生成時 |
 | `quality-rubric` | 成果物のスコアリング評価基準（1-5 の数値評価、合格基準） | `/review-gate` 実行時 |
 
 ## Agents（特化型エージェント）
@@ -130,6 +134,7 @@ docker compose down -v
 | `sfdc-analyzer` | SFDX プロジェクト分析 → 設計書自動生成 | Step 1 |
 | `schema-converter` | DDL 生成 + データ移行スクリプト生成 | Step 2 |
 | `python-modernizer` | TDD で Apex → Python/FastAPI 変換 | Step 3 |
+| `a2ui-frontend-generator` | A2UI + ADK でフロントエンド自動生成 | Step 4 |
 | `migration-reviewer` | 品質レビュー + スコアリング + Step 間整合性検証 | `/review-gate` + 各 Step 完了時 |
 
 ---

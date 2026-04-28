@@ -56,6 +56,14 @@ cat workshop-state.json
 4. Apex テストの assert がすべて pytest に移植されているか
 5. ruff / mypy でエラーがないか（`check-progress.sh 3` を実行）
 
+#### Step 4 をレビューする場合
+1. `04-frontend-a2ui/output/agent/agent.py` — ADK Agent + A2UI 統合が正しいか
+2. `04-frontend-a2ui/output/main.py` — `get_fast_api_app()` + `include_router()` で既存 Router がマージされているか
+3. Agent の Tool 定義 — Step 3 の REST API を正しく呼び出しているか
+4. `A2uiSchemaManager` — BasicCatalog + v0.8 スキーマが正しく設定されているか
+5. Vertex AI 認証 — `GOOGLE_API_KEY` を使用していないか（ADC のみ）
+6. Lit Renderer — `renderer/package.json` と `renderer/src/app.ts` が存在するか
+
 ### 3. 機械的検証の実行
 
 ```bash
@@ -74,6 +82,7 @@ cat workshop-state.json
 - Step 1: `01-reverse-engineering/output/review_report.md`
 - Step 2: `02-schema-migration/output/review_report.md`
 - Step 3: `03-code-modernization/output/review_report.md`
+- Step 4: `04-frontend-a2ui/output/review_report.md`
 
 ### 5. workshop-state.json の更新
 

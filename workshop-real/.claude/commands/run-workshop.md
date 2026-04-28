@@ -48,10 +48,17 @@
 4. Dockerfile + requirements.txt を生成
 5. **セルフレビュー**: テストシナリオの全項目がテストコードにカバーされているか確認
 
-### Step 5: ADR + ロードマップ + アクションアイテム生成
-1. 全 Step の成果物を踏まえた ADR を生成 → `05-roadmap/output/adr.md`
-2. 本日の実績ベースの移行ロードマップを生成 → `05-roadmap/output/roadmap.md`
-3. ワークショップ後のアクションアイテム一覧を生成 → `05-roadmap/output/action_items.md`
+### Step 4: A2UI フロントエンド生成 🆕
+1. Step 1 の `system_overview.md` + Step 3 の `app/router/` + `app/model/schemas.py` を参照
+2. ADK Agent を `a2ui-agent-sdk` + `A2uiSchemaManager` で構築 → `04-frontend-a2ui/output/agent/`
+3. `get_fast_api_app()` で既存 FastAPI Router をマージ → `04-frontend-a2ui/output/main.py`
+4. Lit Renderer をセットアップ → `04-frontend-a2ui/output/renderer/`
+5. **セルフレビュー**: Agent が A2UI JSON を正しく生成し、既存 REST API が引き続き動作することを確認
+
+### Step 6: ADR + ロードマップ + アクションアイテム生成
+1. 全 Step の成果物を踏まえた ADR を生成 → `06-roadmap/output/adr.md`
+2. 本日の実績ベースの移行ロードマップを生成 → `06-roadmap/output/roadmap.md`
+3. ワークショップ後のアクションアイテム一覧を生成 → `06-roadmap/output/action_items.md`
 
 ## 実行ルール
 
@@ -79,6 +86,12 @@
 # ④ PASS したらリセットして次の Step へ
 /clear
 /schema-convert ./examples
+
+# ... Step 4 の場合
+/clear
+/generate-a2ui-frontend
+/clear
+/review-gate 4
 ```
 
 ## 完了条件
@@ -98,6 +111,9 @@
 - [ ] `03-code-modernization/output/app/` (Python プロジェクト)
 - [ ] `03-code-modernization/output/tests/` (テストコード)
 - [ ] `03-code-modernization/output/Dockerfile`
-- [ ] `05-roadmap/output/adr.md`
-- [ ] `05-roadmap/output/roadmap.md`
-- [ ] `05-roadmap/output/action_items.md`
+- [ ] `04-frontend-a2ui/output/agent/agent.py`
+- [ ] `04-frontend-a2ui/output/main.py`
+- [ ] `04-frontend-a2ui/output/renderer/package.json`
+- [ ] `06-roadmap/output/adr.md`
+- [ ] `06-roadmap/output/roadmap.md`
+- [ ] `06-roadmap/output/action_items.md`

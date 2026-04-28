@@ -1,24 +1,25 @@
-Step 5: ADR + ロードマップ + アクションアイテムの自動生成
+Step 6: ADR + ロードマップ + アクションアイテムの自動生成
 
 ## 入力（自動参照）
 - 全 Step の成果物:
   - `01-reverse-engineering/output/`（設計書、影響分析）
   - `02-schema-migration/output/`（DDL、データ移行）
   - `03-code-modernization/output/`（Python プロジェクト、テスト）
-  - `04-quality-and-delivery/output/`（品質評価）
-- `05-roadmap/README.md`（議論テンプレート: Phase 分割、アクションアイテム雛形）
+  - `04-frontend-a2ui/output/`（A2UI Agent + Renderer）
+  - `05-quality-and-delivery/output/`（品質評価）
+- `06-roadmap/README.md`（議論テンプレート: Phase 分割、アクションアイテム雛形）
 - `workshop-state.json`（Step 別スコア、メトリクス、所要時間）
 
 ## 指示
 本日のワークショップで決定した（または検討すべき）アーキテクチャ方針について、以下の **3 つの成果物** を生成してください。
 
-1. **ADR** — `05-roadmap/output/adr.md`
-2. **移行ロードマップ** — `05-roadmap/output/roadmap.md`
-3. **アクションアイテム一覧** — `05-roadmap/output/action_items.md`
+1. **ADR** — `06-roadmap/output/adr.md`
+2. **移行ロードマップ** — `06-roadmap/output/roadmap.md`
+3. **アクションアイテム一覧** — `06-roadmap/output/action_items.md`
 
 ---
 
-## 成果物 1: ADR（`05-roadmap/output/adr.md`）
+## 成果物 1: ADR（`06-roadmap/output/adr.md`）
 
 ### ADR フォーマット（各 ADR ごと）
 ```
@@ -38,6 +39,7 @@ Step 5: ADR + ロードマップ + アクションアイテムの自動生成
 3. ADR-003: コンテナ基盤選定（Cloud Run） — 代替: GKE Autopilot
 4. ADR-004: AI 駆動開発の品質保証方針 — TDD + 多層品質ゲート
 5. ADR-005: データ移行方式 — sf CLI / Data Loader / Bulk API
+6. ADR-006: フロントエンド技術選定（A2UI + Lit） — 代替: React, Angular, Next.js
 
 ### 追加で生成
 - アーキテクチャ全体図（Mermaid `graph TD`）— SFDC 構成 vs Google Cloud 構成を対比
@@ -45,9 +47,9 @@ Step 5: ADR + ロードマップ + アクションアイテムの自動生成
 
 ---
 
-## 成果物 2: 移行ロードマップ（`05-roadmap/output/roadmap.md`）
+## 成果物 2: 移行ロードマップ（`06-roadmap/output/roadmap.md`）
 
-`05-roadmap/README.md` の Phase 分割テンプレートをベースに、**本日の実績値**（Step 1-3 のメトリクス、スコア）を反映させた **顧客固有のロードマップ** を生成してください。
+`06-roadmap/README.md` の Phase 分割テンプレートをベースに、**本日の実績値**（Step 1-4 のメトリクス、スコア）を反映させた **顧客固有のロードマップ** を生成してください。
 
 ### 含めるべき要素
 1. **Mermaid `gantt` 図** — Phase 0 〜 Phase 3 の期間（本日の生産性実績から推定）
@@ -60,7 +62,7 @@ Step 5: ADR + ロードマップ + アクションアイテムの自動生成
 
 ---
 
-## 成果物 3: アクションアイテム一覧（`05-roadmap/output/action_items.md`）
+## 成果物 3: アクションアイテム一覧（`06-roadmap/output/action_items.md`）
 
 ワークショップ後のネクストステップを **実行可能な粒度** で列挙してください。
 
@@ -90,12 +92,12 @@ Step 5: ADR + ロードマップ + アクションアイテムの自動生成
 ---
 
 ## 出力先まとめ
-- `05-roadmap/output/adr.md`
-- `05-roadmap/output/roadmap.md`
-- `05-roadmap/output/action_items.md`
+- `06-roadmap/output/adr.md`
+- `06-roadmap/output/roadmap.md`
+- `06-roadmap/output/action_items.md`
 
 ## 完了後の確認
 生成完了後に以下を実行し、3 ファイルすべての存在を確認してください:
 ```bash
-./scripts/check-progress.sh 5
+./scripts/check-progress.sh 6
 ```
