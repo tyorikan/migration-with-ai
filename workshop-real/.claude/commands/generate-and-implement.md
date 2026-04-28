@@ -76,7 +76,7 @@ CLAUDE.md の「アーキテクチャ（3層レイヤー分離）」に従い、
 3. DB: SQLAlchemy + asyncpg。**Repository ABC ごとに具象 SQLAlchemy 実装（`repository/<resource>_sqlalchemy.py`）を必ず生成する**。ABC のみでの提出は不合格
 4. 設定: pydantic-settings
 5. ログ: structlog
-6. Dockerfile: マルチステージビルド + nonroot + ポート 8080
+6. Dockerfile: マルチステージビルド + nonroot + ポート 8080。**builder と runtime の Python マイナーバージョンを完全に一致させる**こと（例: builder が `python:3.12-slim` なら runtime も `python:3.12-slim`）。`gcr.io/distroless/python3-debian12` は **Python 3.11** ベースなので、3.12 でビルドした wheel は読み込めず `No module named <pkg>` で落ちる。distroless を使うなら同じマイナーバージョンの distroless image を選ぶか、素直に `python:3.<X>-slim` ランタイムに非 root user (`useradd --system app`) を作って `USER app` で起動すること
 7. エラー: `{"error": "message", "code": "ERROR_CODE"}`
 8. **Apex Batch 移行**: 対象 SFDC プロジェクトに `Database.Batchable` を implements する Apex クラスがあれば、`app/jobs/<job_name>.py` を **必ず** 生成する（→ 詳細は `sfdc-to-python` SKILL の「4. Batch Apex → Cloud Run Jobs」参照）。`python -m app.jobs.<job_name>` で起動可能な async main を実装し、冪等性のため `INSERT ... ON CONFLICT DO UPDATE`（または同等の upsert）を入れる。対応する `tests/test_jobs.py` も必須
 9. **dev 依存ツール**: `requirements-dev.txt` に最低限 `mypy`, `pytest-cov`, `bandit` を含める。`pyproject.toml` の `[tool.mypy] strict = true` 宣言と整合させる
@@ -100,9 +100,19 @@ bandit -r app/
 
 # 4. lint
 ruff check app/ tests/
+
+# 5. Docker ビルド（uvicorn 等が runtime ランタイムの site-packages から import できることを保証）
+#    builder と runtime の Python マイナーバージョン不一致は build では検知できないので
+#    以下の起動チェックまで実行すること。
+docker compose build app
+docker compose up -d db app
+sleep 3 && docker compose logs app | tail -20
+# logs に "Uvicorn running on http://0.0.0.0:8080" が出ていれば OK。
+# "No module named uvicorn" 等が出ていれば Dockerfile の Python バージョン不整合を疑う。
+docker compose down
 ```
 
-**4 つすべてが PASS（または bandit はノイズのみで CRITICAL なし）するまでは GREEN とみなさない。** 失敗があれば、以下のいずれかで対応すること:
+**5 つすべてが PASS（または bandit はノイズのみで CRITICAL なし）するまでは GREEN とみなさない。** 失敗があれば、以下のいずれかで対応すること:
 - 実装を修正して再実行
 - ノイズ（false positive）の場合は明示的に `# noqa` / `# type: ignore[<rule>]` / `# nosec B<id>` を付け、理由をコメントで残す
 

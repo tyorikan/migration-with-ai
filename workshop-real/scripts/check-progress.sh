@@ -213,9 +213,21 @@ step4() {
   if check_file "04-frontend-a2ui/output/main.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
   if check_file "04-frontend-a2ui/output/requirements.txt"; then ok=$((ok+1)); else fail=$((fail+1)); fi
   if check_dir "04-frontend-a2ui/output/agent"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_file "04-frontend-a2ui/output/agent/agent.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_file "04-frontend-a2ui/output/agent/tools.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_file "04-frontend-a2ui/output/agent/prompt_builder.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+
+  # ADK 慣習: agent/<agent_name>/{agent,tools,prompt_builder}.py
+  # エージェント名はエンティティ依存で可変なので glob で検出する
+  for fname in agent.py tools.py prompt_builder.py; do
+    local found
+    found=$(find 04-frontend-a2ui/output/agent -mindepth 1 -name "$fname" -type f 2>/dev/null | head -1)
+    if [ -n "$found" ]; then
+      echo -e "  ${GREEN}✅${NC} agent/**/${fname}"
+      ok=$((ok+1))
+    else
+      echo -e "  ${RED}❌${NC} agent/**/${fname} ${RED}(missing)${NC}"
+      fail=$((fail+1))
+    fi
+  done
+
   if check_dir "04-frontend-a2ui/output/renderer"; then ok=$((ok+1)); else fail=$((fail+1)); fi
   if check_file "04-frontend-a2ui/output/renderer/package.json"; then ok=$((ok+1)); else fail=$((fail+1)); fi
 

@@ -228,6 +228,54 @@ app.include_router(store_visit_router, prefix="/api/v1")
 
 ---
 
+## Phase 1.5: Vertex AI 環境変数の設定
+
+> [!IMPORTANT]
+> ADK は **Vertex AI 経由 (`GOOGLE_GENAI_USE_VERTEXAI=TRUE`)** で Gemini を呼び出す。
+> `GOOGLE_API_KEY` は使わない（ADC のみ）。実行時に以下 2 つの環境変数を **必ず** 注入すること。
+
+| 変数 | 必須 | 例 | 備考 |
+|------|-----|----|------|
+| `GOOGLE_CLOUD_PROJECT` | ✅ | `my-gcp-project` | Vertex AI を有効化済みの GCP プロジェクト ID |
+| `GOOGLE_CLOUD_LOCATION` | ✅ | `us-central1` | Gemini をデプロイした Vertex AI リージョン |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ローカル時のみ | `/path/to/sa.json` | `gcloud auth application-default login` 済みなら不要 |
+
+### ローカル実行（venv 直接）
+
+```bash
+export GOOGLE_CLOUD_PROJECT=my-gcp-project
+export GOOGLE_CLOUD_LOCATION=us-central1
+gcloud auth application-default login   # 初回のみ
+cd 04-frontend-a2ui/output && python main.py
+```
+
+### Docker 実行（ローカルから ADC をマウント）
+
+```bash
+docker build -t a2ui-frontend ./04-frontend-a2ui/output
+docker run --rm -p 8080:8080 \
+  -e GOOGLE_CLOUD_PROJECT=my-gcp-project \
+  -e GOOGLE_CLOUD_LOCATION=us-central1 \
+  -v ~/.config/gcloud:/home/app/.config/gcloud:ro \
+  a2ui-frontend
+```
+
+### Cloud Run / GKE
+
+```bash
+# Cloud Run の場合（ADC は Runtime Service Account から自動）
+gcloud run deploy a2ui-frontend \
+  --source ./04-frontend-a2ui/output \
+  --set-env-vars=GOOGLE_CLOUD_PROJECT=my-gcp-project,GOOGLE_CLOUD_LOCATION=us-central1,GOOGLE_GENAI_USE_VERTEXAI=TRUE \
+  --service-account=adk-runtime@my-gcp-project.iam.gserviceaccount.com
+```
+
+> [!TIP]
+> SA には最小限 `roles/aiplatform.user`（Vertex AI 呼び出し）と
+> `roles/cloudsql.client`（ADK セッション永続化を Cloud SQL にする場合）を付与する。
+
+---
+
 ## Phase 2: Lit Renderer + デモ（10min）
 
 > **何をするか**: A2UI 公式の Lit Renderer をセットアップし、ブラウザで実際に CRUD 操作を実行する。
