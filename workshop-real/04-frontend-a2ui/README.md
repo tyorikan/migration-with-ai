@@ -16,7 +16,7 @@ Step 3 の FastAPI Backend に ADK Agent（A2UI 対応）をマージし、Lit R
 | ADK Agent コード | `04-frontend-a2ui/output/agent/` | 🆕 本 Step |
 | FastAPI + ADK マージ main | `04-frontend-a2ui/output/main.py` | 🆕 本 Step |
 | A2UI テンプレート定義 | `04-frontend-a2ui/output/agent/prompt_builder.py` | 🆕 本 Step |
-| Backend API 呼び出し Tool | `04-frontend-a2ui/output/agent/tools.py` | 🆕 本 Step |
+| データアクセス Tool | `04-frontend-a2ui/output/agent/tools.py` | 🆕 本 Step |
 | Lit Renderer | `04-frontend-a2ui/output/renderer/` | 🆕 本 Step |
 
 > [!NOTE]
@@ -60,23 +60,33 @@ flowchart LR
 [A2UI](https://a2ui.org/)（Agent-to-UI）は Google が公開する OSS プロトコル。
 AI エージェントが **宣言的な JSON** で UI を定義し、クライアントが **ネイティブコンポーネント** で描画する。
 
+### データフロー
+
 ```mermaid
 sequenceDiagram
     participant User as 🧑 ユーザー
-    participant Renderer as 🖥️ Lit Renderer
-    participant Agent as 🤖 ADK Agent
-    participant API as 🐍 FastAPI Backend
+    participant Renderer as 🖥️ Lit Renderer<br/>(localhost:5173)
+    participant Agent as 🤖 ADK Agent<br/>(localhost:8080)
+    participant UseCase as 🐍 UseCase / Repository<br/>(同一プロセス)
     participant DB as 🐘 PostgreSQL
 
     User->>Renderer: 管理画面にアクセス
-    Renderer->>Agent: ユーザーリクエスト
-    Agent->>API: Tool 呼び出し (REST API)
-    API->>DB: CRUD 操作
-    DB-->>API: 結果
-    API-->>Agent: JSON レスポンス
-    Agent-->>Renderer: A2UI JSON (Card + List + Button...)
+    Renderer->>Agent: A2A プロトコル (HTTP/SSE)
+    Note over Renderer,Agent: Renderer ↔ Agent は別プロセス<br/>（A2A / AG-UI で通信）
+    Agent->>UseCase: Tool 呼び出し (Python 関数)
+    Note over Agent,UseCase: Agent ↔ UseCase は同一プロセス<br/>（import で直接呼び出し）
+    UseCase->>DB: SQLAlchemy CRUD
+    DB-->>UseCase: 結果
+    UseCase-->>Agent: Python オブジェクト
+    Agent-->>Renderer: A2UI JSON ストリーム (JSONL)
     Renderer-->>User: ネイティブ UI をレンダリング
 ```
+
+> [!IMPORTANT]
+> **Agent の Tool は REST API を HTTP で呼ぶのではない。**
+> `get_fast_api_app()` で Agent と FastAPI Backend が同一プロセスにいるため、
+> Tool は Step 3 の UseCase/Repository 層を **Python 関数として直接 import して呼び出す**。
+> つまり HTTP オーバーヘッドなしの in-process 呼び出し。
 
 **SFDC 移行の文脈での位置づけ:**
 | SFDC 技術 | Google Cloud 移行先 |
@@ -147,28 +157,64 @@ root_agent = Agent(
     name="migration_ui_agent",
     description="Generates rich management UI for migrated SFDC data.",
     instruction=A2UI_INSTRUCTION,
-    tools=[list_entities, get_entity, create_entity, update_entity],
+    tools=[list_visits, get_visit, create_visit, update_visit_status],
 )
 ```
 
-### 2. FastAPI マージ（`get_fast_api_app()`）
+### 2. Tool 定義（UseCase 層の直接呼び出し）
+
+> [!IMPORTANT]
+> Tool は REST API を HTTP で呼ぶのではなく、**Step 3 の UseCase / Repository 層を Python 関数として直接呼び出す**。
+> `get_fast_api_app()` で同一プロセスにいるため、HTTP オーバーヘッドなしで import できる。
+
+```python
+# agent/tools.py
+import json
+from google.adk.tools.tool_context import ToolContext
+from app.usecase.store_visit_usecase import StoreVisitUseCase
+from app.dependencies import get_session  # DI
+
+def list_visits(tool_context: ToolContext) -> str:
+    """訪問記録の一覧を取得する。"""
+    session = get_session()
+    usecase = StoreVisitUseCase(session)
+    visits = usecase.list_all()
+    return json.dumps([v.dict() for v in visits])
+
+def create_visit(store_id: str, visit_date: str, purpose: str,
+                 rating: int, tool_context: ToolContext) -> str:
+    """新しい訪問記録を作成する。"""
+    session = get_session()
+    usecase = StoreVisitUseCase(session)
+    visit = usecase.create(store_id=store_id, visit_date=visit_date,
+                           purpose=purpose, rating=rating)
+    return json.dumps(visit.dict())
+```
+
+### 3. FastAPI マージ（`get_fast_api_app()`）
 
 ```python
 # main.py — ADK 公式パターン
 import os
 from google.adk.cli.fast_api import get_fast_api_app
 
-# ADK が FastAPI app を生成
+# ADK が FastAPI app を生成（A2A エンドポイントを自動マウント）
 app = get_fast_api_app(
     agents_dir=os.path.join(os.path.dirname(__file__), "agent"),
     allow_origins=["*"],
     web=True,
 )
 
-# Step 3 の既存 Router をそのまま追加マウント
+# Step 3 の既存 Router を追加マウント（Swagger UI / curl での手動確認用）
+# → Agent の Tool がこの REST API を呼ぶわけではない。Tool は UseCase を直接呼ぶ。
 from app.router import store_visit_router  # Step 3 の成果物
 app.include_router(store_visit_router, prefix="/api/v1")
 ```
+
+> [!NOTE]
+> **`include_router()` の目的**: Agent の Tool が REST API を呼ぶためではなく、
+> **Swagger UI (`/docs`) や `curl` での手動動作確認用**。
+> Agent は Python in-process で UseCase 層を直接呼ぶため、REST レイヤーを経由しない。
 
 ### 3. A2UI コンポーネント変換パターン
 

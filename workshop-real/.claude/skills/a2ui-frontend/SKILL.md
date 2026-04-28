@@ -142,45 +142,64 @@ app = get_fast_api_app(
     web=True,  # ADK Web UI も有効化
 )
 
-# 既存の FastAPI Router をそのままマウント
+# 既存の FastAPI Router をマウント（Swagger UI / curl での手動確認用）
+# → Agent の Tool がこの REST API を呼ぶわけではない。Tool は UseCase を直接呼ぶ。
 from app.router.store_visit_router import router as store_visit_router
 app.include_router(store_visit_router, prefix="/api/v1")
 ```
 
 **結果のエンドポイント:**
-- `/api/v1/store-visits` — 既存 REST API（Step 3）
-- `/run` — ADK Agent 実行
+- `/api/v1/store-visits` — 既存 REST API（Step 3 由来、Swagger / curl 手動確認用）
+- `/run` — ADK Agent 実行（Renderer から A2A 経由で呼ばれる）
 - `/list-agents` — 登録 Agent 一覧
 - `/sessions` — Agent セッション管理
 
 ## 5. A2UI Agent の Tool 定義パターン
 
+> **重要**: Tool は REST API を HTTP で呼ぶのではなく、**UseCase / Repository 層を Python 関数として直接 import して呼び出す**。
+> `get_fast_api_app()` で Agent と FastAPI Backend が同一プロセスにいるため、HTTP オーバーヘッドなしで in-process 呼び出しが可能。
+
 ```python
 # agent/tools.py
-import httpx
+import json
 from google.adk.tools.tool_context import ToolContext
+from app.usecase.store_visit_usecase import StoreVisitUseCase
+from app.repository.store_visit_repository import StoreVisitRepository
+from app.dependencies import get_session
 
-BASE_URL = "http://localhost:8080/api/v1"
+def list_visits(tool_context: ToolContext) -> str:
+    """訪問記録の一覧を取得する。"""
+    session = get_session()
+    usecase = StoreVisitUseCase(StoreVisitRepository(session))
+    visits = usecase.list_all()
+    return json.dumps([v.dict() for v in visits])
 
-async def list_entities(tool_context: ToolContext) -> str:
-    """Get all entities from the migrated API."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(f"{BASE_URL}/store-visits")
-        return resp.text
-
-async def create_entity(
-    tool_context: ToolContext,
+def create_visit(
     store_id: str,
     visit_date: str,
-    status: str = "Draft",
+    purpose: str,
+    rating: int,
+    tool_context: ToolContext,
 ) -> str:
-    """Create a new entity via the migrated API."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{BASE_URL}/store-visits",
-            json={"store_id": store_id, "visit_date": visit_date, "status": status},
-        )
-        return resp.text
+    """新しい訪問記録を作成する。"""
+    session = get_session()
+    usecase = StoreVisitUseCase(StoreVisitRepository(session))
+    visit = usecase.create(
+        store_id=store_id, visit_date=visit_date,
+        purpose=purpose, rating=rating,
+    )
+    return json.dumps(visit.dict())
+
+def update_visit_status(
+    visit_id: str,
+    new_status: str,
+    tool_context: ToolContext,
+) -> str:
+    """訪問記録のステータスを更新する。"""
+    session = get_session()
+    usecase = StoreVisitUseCase(StoreVisitRepository(session))
+    visit = usecase.update_status(visit_id=visit_id, status=new_status)
+    return json.dumps(visit.dict())
 ```
 
 ## 6. `A2uiSchemaManager` プロンプト生成

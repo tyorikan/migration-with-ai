@@ -32,7 +32,7 @@ cp -r 03-code-modernization/output/* 04-frontend-a2ui/output/
 
 1. Step 1 の設計書から、管理画面に必要な UI パターン（一覧・フォーム・ステータス遷移・削除確認）を特定する
 2. ADK Agent を構築（`a2ui-agent-sdk` + `A2uiSchemaManager` + `BasicCatalog` 使用）
-3. Agent の Tool として、Step 3 の FastAPI REST API を呼び出す関数を定義
+3. Agent の Tool として、Step 3 の **UseCase / Repository 層を Python 関数で直接呼び出す**関数を定義（REST API を HTTP で呼ぶのではなく in-process 呼び出し）
 4. `04-frontend-a2ui/output/main.py` を **書き換え**: `get_fast_api_app()` で ADK アプリを生成し、既存 Router を `include_router()` でマージ
 5. `requirements.txt` に `google-adk`, `a2ui-agent-sdk` を **追記**
 6. `prompt_builder.py` に A2UI テンプレート定義を記述（CRUD 各パターン）
@@ -102,7 +102,7 @@ cd renderer && npm install && npm run dev
 │   ├── __init__.py
 │   ├── agent.py                ← ADK Agent + A2UI 統合
 │   ├── prompt_builder.py       ← A2UI テンプレート・UI 切り替えルール
-│   └── tools.py                ← Backend REST API 呼び出し Tool
+│   └── tools.py                ← UseCase/Repository 直接呼び出し Tool
 ├── main.py                     ← 🆕 get_fast_api_app() + 既存 Router マージ（エントリポイント）
 ├── requirements.txt            ← Step 3 + google-adk, a2ui-agent-sdk
 ├── renderer/                   ← 🆕 Lit Renderer
