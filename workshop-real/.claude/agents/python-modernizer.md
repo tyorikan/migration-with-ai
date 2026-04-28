@@ -125,8 +125,8 @@ throw new AuraHandled...      → raise HTTPException(status_code=400, ...)
 - [ ] mypy --strict でエラーなし（外部ライブラリ除く）
 - [ ] API エンドポイントが httpx で正常レスポンスを返す
 - [ ] エラーレスポンスが構造化フォーマットに準拠している
-- [ ] **Dockerfile が `docker compose build app` で成功する**
-- [ ] **`docker compose up -d db app` で uvicorn が起動する**（`docker compose logs app` に `Uvicorn running on http://0.0.0.0:8080` が出ること）。`No module named uvicorn` で落ちる場合は builder/runtime の Python マイナーバージョン不整合を疑う（distroless/python3-debian12 は **3.11**、`python:3.12-slim` は **3.12**）
+- [ ] **Dockerfile が `docker compose --profile step3 build app` で成功する**
+- [ ] **`docker compose --profile step3 up -d db app` で uvicorn が起動する**（`docker compose logs app` に `Uvicorn running on http://0.0.0.0:8080` が出ること）。`No module named uvicorn` で落ちる場合は builder/runtime の Python マイナーバージョン不整合を疑う（distroless/python3-debian12 は **3.11**、`python:3.12-slim` は **3.12**）。Step 3 の `app` は `profiles: [step3]` 配下にあるため `--profile step3` の指定は必須
 
 ## 出力先
 

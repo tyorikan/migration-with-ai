@@ -249,16 +249,29 @@ gcloud auth application-default login   # 初回のみ
 cd 04-frontend-a2ui/output && python main.py
 ```
 
-### Docker 実行（ローカルから ADC をマウント）
+### Docker Compose 実行（推奨）
 
 ```bash
-docker build -t a2ui-frontend ./04-frontend-a2ui/output
-docker run --rm -p 8080:8080 \
-  -e GOOGLE_CLOUD_PROJECT=my-gcp-project \
-  -e GOOGLE_CLOUD_LOCATION=us-central1 \
-  -v ~/.config/gcloud:/home/app/.config/gcloud:ro \
-  a2ui-frontend
+# 必須: ホスト側で Vertex AI 用 env をエクスポート
+export GOOGLE_CLOUD_PROJECT=my-gcp-project
+export GOOGLE_CLOUD_LOCATION=us-central1
+gcloud auth application-default login   # 初回のみ
+
+# Step 4 統合スタック（db + app-a2ui + a2ui-renderer）を一発起動
+docker compose --profile a2ui up -d --build
+
+# 起動確認
+curl http://localhost:8080/list-apps           # → ["store_visit_ui_agent"]
+curl http://localhost:8080/api/v1/store-visits # Step 3 REST も併用可
+open  http://localhost:5173                    # ブラウザで Lit Renderer
 ```
+
+> [!IMPORTANT]
+> `app` (Step 3) と `app-a2ui` (Step 4) はどちらも 8080 を使うため **profile で排他制御** している。
+> - Step 3 単体の起動: `docker compose --profile step3 up -d`
+> - Step 4 統合の起動: `docker compose --profile a2ui   up -d`
+>
+> 両方を同時に起動することはできない（ポート衝突）。Step 4 は Step 3 の Backend を完全に内包しているので、Step 4 を起動すれば Step 3 の REST API も `/api/v1/...` で利用可能。
 
 ### Cloud Run / GKE
 
@@ -282,12 +295,14 @@ gcloud run deploy a2ui-frontend \
 
 ### Renderer 起動
 
+通常は **Phase 1.5 の `docker compose --profile a2ui up -d`** で `a2ui-renderer` コンテナとして自動起動するため、追加の手順は不要。フロントエンドの開発時にホットリロードで動かしたい場合のみ以下を使う:
+
 ```bash
-# Lit Renderer を起動
+# 開発時のみ: Vite dev server を直接起動 (ホットリロード)
 cd 04-frontend-a2ui/output/renderer
 npm install
 npm run dev
-# → http://localhost:5173 でアクセス
+# → http://localhost:5173 でアクセス（Agent は別途 docker compose で起動済みの前提）
 ```
 
 ### CRUD デモ

@@ -100,11 +100,16 @@ workshop-real/
 # DB のみ起動（Step 2）
 docker compose up -d db
 
-# アプリ + DB（Step 3-4）
-docker compose up -d --build
+# Step 3: db + Step 3 Backend（app）
+#   app と app-a2ui は同じ 8080 を使うため profile で排他制御している
+docker compose --profile step3 up -d --build
+
+# Step 4: db + Step 4 統合 Backend（app-a2ui）+ Lit Renderer（a2ui-renderer）
+#   Vertex AI 用に GOOGLE_CLOUD_PROJECT を export してから実行すること
+docker compose --profile a2ui up -d --build
 
 # クリーンアップ
-docker compose down -v
+docker compose --profile a2ui --profile step3 down -v
 ```
 
 環境変数: `DB_HOST=db`, `DB_PORT=5432`, `DB_USER=app_user`, `DB_PASSWORD=password`, `DB_NAME=migration_db`

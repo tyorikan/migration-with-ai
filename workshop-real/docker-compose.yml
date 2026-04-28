@@ -46,6 +46,43 @@ services:
     # ソースコードをマウント（開発時のホットリロード用）
     volumes:
       - ./03-code-modernization/output:/app:ro
+    # app と app-a2ui は同じ 8080 を使うため profile で排他制御
+    #   Step 3 単体起動: docker compose --profile step3 up -d
+    #   Step 4 統合起動: docker compose --profile a2ui   up -d
+    profiles:
+      - step3
+
+  # -------------------------------------------------------
+  # 🤖 FastAPI + ADK Agent + A2UI — Step 4 統合 Backend
+  # -------------------------------------------------------
+  # Step 3 の Backend に ADK Agent をマージした最終成果物。
+  # `app` と同じ 8080 を使うが profile で分離されるため同時起動は不可。
+  #   起動: docker compose --profile a2ui up -d
+  app-a2ui:
+    build:
+      context: ./04-frontend-a2ui/output
+      dockerfile: Dockerfile
+    container_name: sfdc-migration-app-a2ui
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: app_user
+      DB_PASSWORD: password
+      DB_NAME: migration_db
+      # Vertex AI: ホスト側で `export GOOGLE_CLOUD_PROJECT=...` してから起動すること
+      GOOGLE_GENAI_USE_VERTEXAI: "TRUE"
+      GOOGLE_CLOUD_PROJECT: "${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT in your shell before docker compose up}"
+      GOOGLE_CLOUD_LOCATION: "${GOOGLE_CLOUD_LOCATION:-us-central1}"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # ホストの ADC を read-only でマウント（gcloud auth application-default login 済み前提）
+      - ${HOME}/.config/gcloud:/home/app/.config/gcloud:ro
+    profiles:
+      - a2ui
 
   # -------------------------------------------------------
   # 🎨 A2UI Lit Renderer — フロントエンド（Step 4 で有効化）
@@ -59,12 +96,12 @@ services:
     ports:
       - "5173:5173"
     environment:
-      # Agent の接続先（app コンテナ内の ADK エンドポイント）
-      AGENT_URL: http://app:8080
+      # Agent の接続先（app-a2ui コンテナの ADK エンドポイント）
+      AGENT_URL: http://app-a2ui:8080
     depends_on:
-      - app
+      - app-a2ui
     profiles:
-      - frontend  # docker compose --profile frontend up で有効化
+      - a2ui  # docker compose --profile a2ui up で app-a2ui と一緒に起動
 
 volumes:
   pgdata:

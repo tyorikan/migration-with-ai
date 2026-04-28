@@ -104,12 +104,13 @@ ruff check app/ tests/
 # 5. Docker ビルド（uvicorn 等が runtime ランタイムの site-packages から import できることを保証）
 #    builder と runtime の Python マイナーバージョン不一致は build では検知できないので
 #    以下の起動チェックまで実行すること。
-docker compose build app
-docker compose up -d db app
+#    Step 3 の app サービスは profiles: [step3] 配下にあるので --profile step3 が必須。
+docker compose --profile step3 build app
+docker compose --profile step3 up -d db app
 sleep 3 && docker compose logs app | tail -20
 # logs に "Uvicorn running on http://0.0.0.0:8080" が出ていれば OK。
 # "No module named uvicorn" 等が出ていれば Dockerfile の Python バージョン不整合を疑う。
-docker compose down
+docker compose --profile step3 down
 ```
 
 **5 つすべてが PASS（または bandit はノイズのみで CRITICAL なし）するまでは GREEN とみなさない。** 失敗があれば、以下のいずれかで対応すること:

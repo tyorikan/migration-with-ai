@@ -1,6 +1,6 @@
 ---
 name: a2ui-frontend
-description: A2UI プロトコル v0.8 のコンポーネント変換パターン、ADK + FastAPI 統合パターン、Lit Renderer セットアップ手順を定義するドメインナレッジスキル。
+description: A2UI プロトコル (v0.9 推奨、v0.8 互換) のコンポーネント変換パターン、ADK + FastAPI 統合パターン、Lit Renderer セットアップ手順を定義するドメインナレッジスキル。
 ---
 
 A2UI を使ったフロントエンド自動生成のドメインナレッジ。
@@ -134,7 +134,7 @@ Agent (Python/ADK) → A2UI JSON → Transport (REST/A2A) → Renderer (Lit/Angu
 | 環境 | Service | URI 例 | 備考 |
 |------|---------|--------|------|
 | ローカル開発（揮発OK） | `InMemorySessionService` | `session_service_uri=None`（引数省略） | プロセス再起動でセッション消失 |
-| **当ワークショップ推奨** | `DatabaseSessionService`（SQLAlchemy） | `postgresql+psycopg2://app_user:password@db:5432/migration_db` | docker-compose の `db` を共有。Cloud SQL 本番移行が容易 |
+| **当ワークショップ推奨** | `DatabaseSessionService`（SQLAlchemy） | `postgresql+asyncpg://app_user:password@db:5432/migration_db` | docker-compose の `db` を共有。Cloud SQL 本番移行が容易。**ADK は `create_async_engine` を使うため async driver (asyncpg) 必須**。psycopg2 は使えない |
 | 本番（GCP） | `cloud_sql` バックエンド | `agents-cli scaffold create --session-type cloud_sql` | `google-agents-cli-deploy` 参照 |
 | 本番（GCP, Vertex AI 統合） | `VertexAiSessionService` | `agentengine://{resource_name}` | Agent Runtime デプロイ時 |
 
@@ -152,9 +152,11 @@ AGENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent")
 
 # Step 2 で構築した PostgreSQL を ADK セッションストアにも共有
 # 本番では Cloud SQL に切り替えるだけ（URI を環境変数で差し替え）
+# ADK の DatabaseSessionService は create_async_engine を呼ぶため async driver (asyncpg) 必須。
+# psycopg2 を指定すると "asyncio extension requires an async driver" で起動時に落ちる。
 SESSION_DB_URL = os.environ.get(
     "ADK_SESSION_DB_URL",
-    f"postgresql+psycopg2://{settings.db_user}:{settings.db_password}"
+    f"postgresql+asyncpg://{settings.db_user}:{settings.db_password}"
     f"@{settings.db_host}:{settings.db_port}/{settings.db_name}",
 )
 
@@ -180,16 +182,43 @@ app.include_router(store_visit_router, prefix="/api/v1")
 
 ### docker-compose で確認する手順
 
+> [!IMPORTANT]
+> Step 3 (`app`) と Step 4 (`app-a2ui`) は同じ 8080 を使うため `profiles` で排他制御している。
+> Step 4 を起動するときは `--profile a2ui` を必ず付けること。
+
 ```bash
-# 1. DB + App 起動
-docker compose up -d --build
+# 0. Vertex AI 用 env をホストから渡す
+export GOOGLE_CLOUD_PROJECT=my-gcp-project
+export GOOGLE_CLOUD_LOCATION=us-central1
+gcloud auth application-default login   # 初回のみ
+
+# 1. db + app-a2ui + a2ui-renderer を起動
+docker compose --profile a2ui up -d --build
 
 # 2. ADK がセッションテーブルを自動作成しているか確認
 docker compose exec db psql -U app_user -d migration_db -c "\dt"
 # → sessions, app_states, user_states, events 等が見えれば OK
 
 # 3. Agent エンドポイント疎通確認
-curl -s http://localhost:8080/list-agents
+curl -s http://localhost:8080/list-apps    # → ["<your_agent_dirname>"]
+```
+
+### Step 3 の requirements.txt をそのまま流用すると `google-adk` と依存衝突する
+
+> [!WARNING]
+> Step 3 の `requirements.txt` には `fastapi==0.115.5` `uvicorn==0.32.1` `anyio==4.7.0` などの厳格 pin が入っているが、
+> `google-adk` 1.x は `starlette>=0.46.2` `uvicorn>=0.34.0` `anyio>=4.9.0` を要求するため、そのままでは
+> `pip install` が `ResolutionImpossible` で失敗する。
+
+**Step 4 の `requirements.txt` では Step 3 の pin を `==` から `>=` に緩めること**。最低限以下に揃える:
+
+```
+fastapi>=0.116.0
+uvicorn[standard]>=0.34.0
+anyio>=4.9.0
+# 残りの pydantic, sqlalchemy, asyncpg, structlog, httpx は Step 3 の値以上で OK
+google-adk>=1.0.0
+a2ui-agent-sdk>=0.2.1   # ← 0.8.0 ではない（プロトコルバージョンとの混同に注意）
 ```
 
 ## 5. A2UI Agent の Tool 定義パターン
@@ -243,13 +272,13 @@ def update_visit_status(
 ## 6. `A2uiSchemaManager` プロンプト生成
 
 ```python
-from a2ui.schema.constants import VERSION_0_8
+from a2ui.schema.constants import VERSION_0_9
 from a2ui.schema.manager import A2uiSchemaManager
 from a2ui.basic_catalog.provider import BasicCatalog
 
 schema_manager = A2uiSchemaManager(
-    version=VERSION_0_8,
-    catalogs=[BasicCatalog.get_config(version=VERSION_0_8)],
+    version=VERSION_0_9,
+    catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
 )
 
 instruction = schema_manager.generate_system_prompt(
@@ -263,6 +292,17 @@ instruction = schema_manager.generate_system_prompt(
 
 ## 7. Lit Renderer セットアップ
 
+> [!IMPORTANT] **パッケージ名・バージョン・API の混同注意**
+> - 公式 npm パッケージは **`@a2ui/lit`** と **`@a2ui/web_core`**（Google が公開、Apache-2.0）。
+>   `@anthropic-ai/a2ui-lit-renderer` や `@a2ui/lit-renderer` は **存在しない**（過去のドキュメント誤記）。
+> - npm パッケージのバージョン (0.9.x 系) と **A2UI プロトコルのバージョン (v0.8 / v0.9)** を混同しない。
+>   `^0.8.0` を `dependencies` に書くと npm registry が解決できず `E404` で落ちる。
+> - 公式が新規プロジェクトに推奨するのは **protocol v0.9**。`@a2ui/lit/v0_9` から import する。
+> - カスタム要素は **`<a2ui-surface>`**（`<a2ui-renderer>` ではない）。
+>   Surface オブジェクトは `MessageProcessor` から `onSurfaceCreated` 経由で取得して `.surface` プロパティに渡す。
+> - 同様に Python SDK (`a2ui-agent-sdk`) も最新は **0.2.x**。`>=0.8.0` と書くと PyPI で解決できない。
+>   v0.8 / v0.9 両プロトコルを 0.2.x SDK が提供する。
+
 ### package.json
 
 ```json
@@ -274,39 +314,78 @@ instruction = schema_manager.generate_system_prompt(
     "build": "tsc && vite build"
   },
   "dependencies": {
-    "@anthropic-ai/a2ui-lit-renderer": "latest",
-    "lit": "^3.0.0"
+    "@a2ui/lit": "^0.9.3",
+    "@a2ui/web_core": "^0.9.2",
+    "lit": "^3.2.1"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
   }
 }
 ```
 
-### src/app.ts
+### src/app.ts (公式 v0.9 パターン: MessageProcessor + ADK /run_sse 購読)
 
 ```typescript
-import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
-import '@anthropic-ai/a2ui-lit-renderer';
+import { LitElement, html, css } from "lit";
+import { customElement, state } from "lit/decorators.js";
+import { MessageProcessor } from "@a2ui/web_core/v0_9";
+import { A2uiSurface, basicCatalog } from "@a2ui/lit/v0_9";
 
-@customElement('migration-app')
+void A2uiSurface; // side-effect import: registers <a2ui-surface>
+
+const APP_NAME = "migration_ui_agent";
+const USER_ID = "workshop-user";
+const SURFACE_ID = "main-surface";
+const AGENT_BASE_URL = "http://localhost:8080";
+// Python SDK の A2UI_OPEN_TAG / A2UI_CLOSE_TAG と一致させる
+const A2UI_BLOCK_RE = /<a2ui-json>([\s\S]*?)<\/a2ui-json>/g;
+
+@customElement("migration-app")
 export class MigrationApp extends LitElement {
-  static styles = css`
-    :host { display: block; padding: 16px; font-family: 'Google Sans', sans-serif; }
-  `;
+  private processor = new MessageProcessor([basicCatalog]);
+  @state() private surface?: unknown;
+  private sessionId = crypto.randomUUID();
+
+  override connectedCallback() {
+    super.connectedCallback();
+    this.processor.onSurfaceCreated((s: { id: string }) => {
+      if (s.id === SURFACE_ID) this.surface = s;
+    });
+    // ADK セッション作成
+    fetch(`${AGENT_BASE_URL}/apps/${APP_NAME}/users/${USER_ID}/sessions/${this.sessionId}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  }
+
+  private async sendPrompt(prompt: string) {
+    const res = await fetch(`${AGENT_BASE_URL}/run_sse`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        app_name: APP_NAME, user_id: USER_ID, session_id: this.sessionId,
+        new_message: { role: "user", parts: [{ text: prompt }] },
+        streaming: true,
+      }),
+    });
+    // SSE をパースし、各 event の text から <a2ui-json>...</a2ui-json> を抽出して
+    // processor.processMessages([...]) に流す（実装は本ワークショップの app.ts を参照）
+  }
 
   render() {
     return html`
-      <a2ui-renderer
-        agent-url="http://localhost:8080"
-        agent-name="migration_ui_agent"
-      ></a2ui-renderer>
+      <button @click=${() => this.sendPrompt("一覧を見せて")}>一覧</button>
+      ${this.surface
+        ? html`<a2ui-surface .surface=${this.surface}></a2ui-surface>`
+        : html`<div>Agent からの UI 応答待ち…</div>`}
     `;
   }
 }
 ```
+
+> [!NOTE]
+> `<a2ui-surface>` は `MessageProcessor` の `onSurfaceCreated` コールバックから受け取った Surface オブジェクトを `.surface` プロパティに渡すと、catalog に登録された各コンポーネントを Lit でレンダリングする。
+> Agent は LLM 応答内に `<a2ui-json>...</a2ui-json>` でラップされた v0.9 メッセージ JSON 配列を出力するので、SSE をストリーミング購読してこのタグを抽出 → JSON parse → `processor.processMessages([...])` に流す。
 
 ## 8. Vertex AI 認証設定
 
