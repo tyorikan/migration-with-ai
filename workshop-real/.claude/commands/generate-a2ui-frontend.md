@@ -11,6 +11,29 @@ Step 4: A2UI フロントエンド生成 — ADK Agent + Lit Renderer
 - UseCase: `03-code-modernization/output/app/usecase/`
 - 依存定義: `03-code-modernization/output/requirements.txt`
 
+## 必須参照スキル（Plan 提示前に必ず Skill ツールで開くこと）
+
+ADK 関連の判断は当ファイルの抜粋ではなく、Google 公式スキルを根拠とする:
+
+- **`google-agents-cli-workflow`** — ADK 開発ライフサイクル全体（Always active）
+- **`google-agents-cli-adk-code`** — Agent / Tool / callbacks / **state/sessions** の API 詳細
+- **`google-agents-cli-deploy`** — `session_service_uri` の選択肢と本番デプロイ
+- **`a2ui-frontend`** — A2UI v0.8 + 当 Workshop 固有の統合パターン（PostgreSQL 共有 / Lit Renderer）
+
+> Plan 段階で「どのスキルを根拠に何を決めたか」を明記すること。
+
+### スキル取得（コマンド実行の最初に必ずチェック）
+
+`google-agents-cli-*` スキルは **動的取得 / git 管理外** の方針。コマンド実行開始時に以下を必ず実行:
+
+```bash
+# 既に存在すればスキップ、無ければ取得（副作用ディレクトリも自動掃除）
+./scripts/install-adk-skills.sh
+```
+
+**スキルが新規取得された場合**: 現在の Claude Code セッションでは認識されない。ユーザーに「`/clear` で再起動 → 再度 `/generate-a2ui-frontend` を実行してください」と案内し、当コマンドは一旦終了する。
+**既存だった場合**: そのまま下記 Phase 0 へ進む。
+
 ## 実行内容
 
 以下を **自律的に** 実行してください。
@@ -34,7 +57,9 @@ cp -r 03-code-modernization/output/* 04-frontend-a2ui/output/
 2. ADK Agent を構築（`a2ui-agent-sdk` + `A2uiSchemaManager` + `BasicCatalog` 使用）
 3. Agent の Tool として、Step 3 の **UseCase / Repository 層を Python 関数で直接呼び出す**関数を定義（REST API を HTTP で呼ぶのではなく in-process 呼び出し）
 4. `04-frontend-a2ui/output/main.py` を **書き換え**: `get_fast_api_app()` で ADK アプリを生成し、既存 Router を `include_router()` でマージ
-5. `requirements.txt` に `google-adk`, `a2ui-agent-sdk` を **追記**
+   - **`session_service_uri` は PostgreSQL を指す**（`postgresql+psycopg2://app_user:password@db:5432/migration_db` または `app/config.py` から組み立てる）
+   - **SQLite (`sqlite+aiosqlite:///`) は禁止** — 公式 `--session-type` 選択肢に存在せず、コンテナ揮発・複数レプリカ非対応
+5. `requirements.txt` に `google-adk`, `a2ui-agent-sdk`, `psycopg2-binary` を **追記**（PostgreSQL ドライバ）
 6. `prompt_builder.py` に A2UI テンプレート定義を記述（CRUD 各パターン）
 
 ### Phase 2: Lit Renderer セットアップ
@@ -52,12 +77,16 @@ cp -r 03-code-modernization/output/* 04-frontend-a2ui/output/
 生成後、以下を確認してください:
 
 ```bash
-# 1. Python 依存インストール
-cd 04-frontend-a2ui/output
-pip install -r requirements.txt
+# 0. セッション URI が PostgreSQL を指しているか静的検証（SQLite 禁止）
+grep -nE "session_service_uri" 04-frontend-a2ui/output/main.py
+grep -E "sqlite" 04-frontend-a2ui/output/main.py && echo "❌ SQLite 検出 — PostgreSQL に修正" && exit 1
 
-# 2. FastAPI + ADK 起動確認
-python main.py &
+# 1. docker-compose で DB + App 起動
+docker compose up -d --build db app
+
+# 2. ADK が PostgreSQL にセッションテーブルを自動作成しているか確認
+docker compose exec db psql -U app_user -d migration_db -c "\dt" | grep -iE "(session|state|event)"
+# → sessions / app_states / user_states / events 等が見えれば OK
 
 # 3. 既存 REST API が動作確認（Step 3 の API がそのまま動く）
 curl -s http://localhost:8080/api/v1/store-visits | head -20
@@ -66,8 +95,21 @@ curl -s http://localhost:8080/api/v1/store-visits | head -20
 curl -s http://localhost:8080/list-agents
 
 # 5. Lit Renderer 起動
-cd renderer && npm install && npm run dev
+cd 04-frontend-a2ui/output/renderer && npm install && npm run dev
 ```
+
+### 完了チェックリスト
+
+Plan の最後に以下を全項目チェックすること（チェックが付かない項目があれば修正してから完了報告）:
+
+- [ ] Skill ツールで `google-agents-cli-workflow`, `google-agents-cli-adk-code`, `google-agents-cli-deploy`, `a2ui-frontend` を起動した
+- [ ] `main.py` の `session_service_uri` が `postgresql+psycopg2://...`（または環境変数経由）を指す
+- [ ] `main.py` 内に `sqlite` 文字列が一切ない（`grep -E "sqlite" main.py` が空）
+- [ ] `requirements.txt` に PostgreSQL ドライバ（`psycopg2-binary` 等）が含まれる
+- [ ] `docker compose up -d` で DB + App + （オプション）Renderer が起動する
+- [ ] `psql -c "\dt"` で ADK のセッションテーブルが PostgreSQL 上に作成されている
+- [ ] `GOOGLE_API_KEY` を一切使用していない（Vertex AI ADC のみ）
+- [ ] Step 3 の `app/` `tests/` がバイト同一（`diff -rq` で差分なし）
 
 ## A2UI コンポーネント変換ルール
 

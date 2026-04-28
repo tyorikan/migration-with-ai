@@ -126,18 +126,42 @@ Agent (Python/ADK) → A2UI JSON → Transport (REST/A2A) → Renderer (Lit/Angu
 
 ## 4. ADK + FastAPI 統合パターン（`get_fast_api_app()`）
 
-### 推奨: Wrapped パターン
+> **ADK API の詳細仕様（`get_fast_api_app` の引数、Session Service の種類、Tool の戻り型契約 など）は、外部スキル `google-agents-cli-adk-code` および `google-agents-cli-deploy` を必ず参照すること。**
+> 本セクションは「**当ワークショップ固有の統合パターン**」のみを記載する。
+
+### Session Service の選択（重要）
+
+| 環境 | Service | URI 例 | 備考 |
+|------|---------|--------|------|
+| ローカル開発（揮発OK） | `InMemorySessionService` | `session_service_uri=None`（引数省略） | プロセス再起動でセッション消失 |
+| **当ワークショップ推奨** | `DatabaseSessionService`（SQLAlchemy） | `postgresql+psycopg2://app_user:password@db:5432/migration_db` | docker-compose の `db` を共有。Cloud SQL 本番移行が容易 |
+| 本番（GCP） | `cloud_sql` バックエンド | `agents-cli scaffold create --session-type cloud_sql` | `google-agents-cli-deploy` 参照 |
+| 本番（GCP, Vertex AI 統合） | `VertexAiSessionService` | `agentengine://{resource_name}` | Agent Runtime デプロイ時 |
+
+> **アンチパターン**: `sqlite+aiosqlite:///./sessions.db` は使用しない。
+> 理由: (1) 公式 `--session-type` 選択肢に存在しない、(2) コンテナ揮発・複数レプリカで共有不可、(3) docker-compose に PostgreSQL が既に存在し再利用可能。
+
+### 推奨: Wrapped パターン（当ワークショップ用）
 
 ```python
 import os
 from google.adk.cli.fast_api import get_fast_api_app
+from app.config import settings
 
 AGENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent")
+
+# Step 2 で構築した PostgreSQL を ADK セッションストアにも共有
+# 本番では Cloud SQL に切り替えるだけ（URI を環境変数で差し替え）
+SESSION_DB_URL = os.environ.get(
+    "ADK_SESSION_DB_URL",
+    f"postgresql+psycopg2://{settings.db_user}:{settings.db_password}"
+    f"@{settings.db_host}:{settings.db_port}/{settings.db_name}",
+)
 
 # ADK が FastAPI app を生成（Agent エンドポイント含む）
 app = get_fast_api_app(
     agents_dir=AGENT_DIR,
-    session_service_uri="sqlite+aiosqlite:///./sessions.db",
+    session_service_uri=SESSION_DB_URL,
     allow_origins=["*"],
     web=True,  # ADK Web UI も有効化
 )
@@ -152,7 +176,21 @@ app.include_router(store_visit_router, prefix="/api/v1")
 - `/api/v1/store-visits` — 既存 REST API（Step 3 由来、Swagger / curl 手動確認用）
 - `/run` — ADK Agent 実行（Renderer から A2A 経由で呼ばれる）
 - `/list-agents` — 登録 Agent 一覧
-- `/sessions` — Agent セッション管理
+- `/sessions` — Agent セッション管理（PostgreSQL の `sessions` 等のテーブルに永続化）
+
+### docker-compose で確認する手順
+
+```bash
+# 1. DB + App 起動
+docker compose up -d --build
+
+# 2. ADK がセッションテーブルを自動作成しているか確認
+docker compose exec db psql -U app_user -d migration_db -c "\dt"
+# → sessions, app_states, user_states, events 等が見えれば OK
+
+# 3. Agent エンドポイント疎通確認
+curl -s http://localhost:8080/list-agents
+```
 
 ## 5. A2UI Agent の Tool 定義パターン
 

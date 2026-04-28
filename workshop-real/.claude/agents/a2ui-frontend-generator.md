@@ -13,6 +13,19 @@ tools: ["Read", "Write", "Edit", "Bash", "Grep"]
 - `get_fast_api_app()` を使い、既存 FastAPI に ADK Agent をマージする
 - スキル `a2ui-frontend` の A2UI コンポーネント変換パターンに従う
 
+## 必須参照スキル（Plan 策定前に必ず Skill ツールで読み込むこと）
+
+ADK の **API 仕様** と **デプロイ・セッション設計** の根拠は当ファイルでも `a2ui-frontend` スキルでもなく、**Google 公式スキル** にある。当エージェントは以下を **必ず** Skill ツールで起動して参照する:
+
+| 必須スキル | 何を見るか |
+|-----------|-----------|
+| `google-agents-cli-workflow` | ADK 開発ライフサイクルの全体観・モデル選択・コード保存ルール |
+| `google-agents-cli-adk-code` | `Agent`, `Tool`, callbacks, **state/sessions** の正解 API |
+| `google-agents-cli-deploy` | `session_service_uri` の選択肢（`in_memory` / `cloud_sql` / `agent_platform_sessions`）と本番デプロイ |
+| `a2ui-frontend`（当ワークショップ独自） | A2UI v0.8 + 当 Workshop の Backend マージ・PostgreSQL 共有・Lit Renderer |
+
+> **禁止事項**: ADK API について自己流の知識やトレーニングデータ由来の古い記憶で判断しない。**必ず上記スキルを Skill ツールで開いて根拠とすること**。
+
 ## 前提知識
 
 ### A2UI プロトコル
@@ -21,17 +34,28 @@ tools: ["Read", "Write", "Edit", "Bash", "Grep"]
 - LLM フレンドリー: Flat list 構造（Adjacency List Model）で逐次生成しやすい
 
 ### ADK + FastAPI 統合
-ADK は `google.adk.cli.fast_api.get_fast_api_app()` を提供しており、以下のパターンで既存 FastAPI と統合する:
+ADK は `google.adk.cli.fast_api.get_fast_api_app()` を提供する。以下は **当ワークショップ固有の統合パターン**（API 詳細は `google-agents-cli-adk-code` 参照）:
 
 ```python
 from google.adk.cli.fast_api import get_fast_api_app
 
 # ADK が FastAPI app を生成（Agent エンドポイント含む）
-app = get_fast_api_app(agents_dir=AGENT_DIR, web=True)
+# session_service_uri は docker-compose の PostgreSQL を共有（SQLite 禁止）
+app = get_fast_api_app(
+    agents_dir=AGENT_DIR,
+    session_service_uri="postgresql+psycopg2://app_user:password@db:5432/migration_db",
+    web=True,
+)
 
 # 既存の FastAPI Router をそのまま追加
 app.include_router(existing_router, prefix="/api/v1")
 ```
+
+### セッションストアの必須ルール
+- **必ず PostgreSQL（docker-compose の `db` サービス）を共有** すること
+- **SQLite 禁止**（`sqlite+aiosqlite:///` は公式の `--session-type` に存在せず、コンテナ揮発・複数レプリカ非対応）
+- 接続情報は `app/config.py` の `settings` を再利用（環境変数 `ADK_SESSION_DB_URL` で本番上書き可）
+- 本番は Cloud SQL or `VertexAiSessionService`（詳細は `google-agents-cli-deploy`）
 
 ## 生成手順
 

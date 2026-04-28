@@ -1,0 +1,46 @@
+# --- Google agents-cli skills (動的取得・コミット対象外) ---
+# scripts/install-adk-skills.sh で取得する。常に最新の ADK 仕様を上流から取得する方針。
+.claude/skills/google-agents-cli-*/
+.claude/skills/google-agents-cli-LICENSE.txt
+.claude/skills/google-agents-cli-NOTICE.md
+skills-lock.json
+
+# npx skills add の副作用ディレクトリ（毎回 install-adk-skills.sh が掃除する）
+.adal/
+.agents/
+.aider-desk/
+.augment/
+.bob/
+.codeartsdoer/
+.codebuddy/
+.codemaker/
+.codestudio/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.devin/
+.factory/
+.forge/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.rovodev/
+.tabnine/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+/skills/

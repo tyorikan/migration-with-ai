@@ -122,8 +122,46 @@ docker compose down -v
 | `sfdc-schema-migration` | SFDC → PostgreSQL DDL 変換ルール（命名規則、型マッピング、データ移行） | Step 2: スキーマ変換時 |
 | `reverse-engineering` | SFDC ソースコードからの設計書逆起こしルール | Step 1: 逆起こし時 |
 | `tdd-modernize` | Apex テスト → pytest 変換 + TDD ワークフロー | Step 3: テスト駆動開発時 |
-| `a2ui-frontend` | A2UI コンポーネント変換パターン + ADK 統合 | Step 4: フロントエンド生成時 |
+| `a2ui-frontend` | A2UI コンポーネント変換パターン + 当ワークショップ固有の Backend マージ + Lit Renderer | Step 4: フロントエンド生成時 |
 | `quality-rubric` | 成果物のスコアリング評価基準（1-5 の数値評価、合格基準） | `/review-gate` 実行時 |
+
+### 外部由来スキル（Google 公式 — **動的取得 / git 管理外**）
+
+ADK (Agent Development Kit) の Python API・state/sessions・デプロイ・評価・観測の **正解** は、Google 公式の以下スキルを **必ず参照** すること。
+当ワークショップ固有のスキル `a2ui-frontend` は A2UI とワークショップの統合パターンに集中し、ADK API 詳細はこちらに委譲する。
+
+> **コミットしない方針**: 上流（<https://github.com/google/agents-cli>, Apache 2.0）の最新仕様を常に取得するため、`.gitignore` で除外している。
+> 取得は `./scripts/install-adk-skills.sh` を実行する（既存があればスキップ、`--force` で再取得）。
+> 取得後は `/clear` で Claude Code を再起動するとスキルが認識される。
+
+| スキル | 用途 | 参照タイミング |
+|-------|------|-------------|
+| `google-agents-cli-workflow` | ADK 開発ライフサイクル全般・コード保存ルール・モデル選択 | Step 4: ADK Agent を扱う全工程（Always active） |
+| `google-agents-cli-adk-code` | ADK Python API（agents, tools, callbacks, **state/sessions**） | Step 4: Agent / Tool / セッション設計時 |
+| `google-agents-cli-deploy` | デプロイ（Agent Runtime / Cloud Run / GKE）・**session_service_uri**（in_memory / cloud_sql / agent_platform_sessions）・サービスアカウント | Step 4 後の本番デプロイ検討時 |
+| `google-agents-cli-eval` | Eval メトリクス・evalset スキーマ・LLM-as-judge | Step 4 後の品質評価時 |
+| `google-agents-cli-observability` | Cloud Trace・ログ・BigQuery Agent Analytics | 本番運用時 |
+| `google-agents-cli-publish` | Gemini Enterprise への登録 | 本番公開時 |
+| `google-agents-cli-scaffold` | `agents-cli scaffold` 系コマンド（参考のみ。当ワークショップでは独自フローを使用） | 参考 |
+
+> **重要**: ADK のセッションストアに **SQLite を使ってはならない**。`google-agents-cli-deploy` の公式選択肢は `in_memory` / `cloud_sql (PostgreSQL)` / `agent_platform_sessions` の 3 択。
+> 当ワークショップでは docker-compose の `db` サービス（PostgreSQL 16）を ADK の `DatabaseSessionService` に共有させる方針（Cloud SQL 本番移行が容易）。
+
+#### 外部スキルの取得 / 更新
+
+```bash
+# 取得（既に存在すればスキップ）
+./scripts/install-adk-skills.sh
+
+# 強制再取得（最新化）
+./scripts/install-adk-skills.sh --force
+
+# 取得後、Claude Code を /clear で再起動するとスキルが認識される
+```
+
+スキル本体は `.claude/skills/google-agents-cli-*/SKILL.md` に配置されるが **git 管理外**。
+副作用ディレクトリ（`.augment/`, `.windsurf/` 等）はスクリプトが自動掃除する。
+出所: <https://github.com/google/agents-cli> / <https://google.github.io/agents-cli/reference/skills/>
 
 ## Agents（特化型エージェント）
 
