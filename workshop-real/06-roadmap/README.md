@@ -25,7 +25,7 @@
 - `01-reverse-engineering/output/`（設計書、影響分析）
 - `02-schema-migration/output/`（DDL、データ移行）
 - `03-code-modernization/output/`（Python プロジェクト、テスト）
-- `04-frontend-a2ui/output/`（A2UI Agent + Renderer）
+- `04-frontend-nextjs/output/`（Next.js 設計書 + 実装、BFF Route Handler）
 - `05-quality-and-delivery/output/`（品質評価）
 
 **生成される ADR 一覧**:
@@ -130,7 +130,7 @@ echo "==========================================="
 echo "🎯 全 Step 成果物チェック"
 echo "==========================================="
 
-for dir in 01-reverse-engineering 02-schema-migration 03-code-modernization 04-frontend-a2ui 05-quality-and-delivery 06-roadmap; do
+for dir in 01-reverse-engineering 02-schema-migration 03-code-modernization 04-frontend-nextjs 05-quality-and-delivery 06-roadmap; do
   echo ""
   echo "--- $dir ---"
   if [ -d "$dir/output" ]; then
@@ -157,11 +157,15 @@ echo "==========================================="
 ```bash
 # quality-rubric に基づく最終スコアを表示
 # 注: スコアは .steps.stepN.review.score に格納される（review オブジェクト配下）。
+#     Step 4 は二段（設計 4-A と実装 4-B）で個別に review が走るため、
+#     phases.{design,implement}.review.score から個別スコアも併記する。
 #     未評価の Step (score: null) は平均から除外する。
 cat workshop-state.json | jq '{
   step1: .steps.step1.review.score,
   step2: .steps.step2.review.score,
   step3: .steps.step3.review.score,
+  step4_a: .steps.step4.phases.design.review.score,
+  step4_b: .steps.step4.phases.implement.review.score,
   step4: .steps.step4.review.score,
   step6: .steps.step6.review.score,
   overall: ([.steps[].review.score | select(. != null)] | add / length)

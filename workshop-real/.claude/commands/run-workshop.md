@@ -48,12 +48,20 @@
 4. Dockerfile + requirements.txt を生成
 5. **セルフレビュー**: テストシナリオの全項目がテストコードにカバーされているか確認
 
-### Step 4: A2UI フロントエンド生成 🆕
-1. Step 1 の `system_overview.md` + Step 3 の `app/router/` + `app/model/schemas.py` を参照
-2. ADK Agent を `a2ui-agent-sdk` + `A2uiSchemaManager` で構築 → `04-frontend-a2ui/output/agent/`
-3. `get_fast_api_app()` で既存 FastAPI Router をマージ → `04-frontend-a2ui/output/main.py`
-4. Lit Renderer をセットアップ → `04-frontend-a2ui/output/renderer/`
-5. **セルフレビュー**: Agent が A2UI JSON を正しく生成し、既存 REST API が引き続き動作することを確認
+### Step 4-A: Next.js 設計フェーズ
+1. Step 1 の `system_overview.md` + `wiki/` + Step 3 の `app/router/` + `app/model/schemas.py` + `app/usecase/` を参照
+2. `nextjs-frontend-designer` Agent が `04-frontend-nextjs/output/design/` 配下に **中粒度 markdown 設計書 11 ファイル** を生成
+   - `overview.md` / `design-system.md` / `api-client.md` / `data-model.md`
+   - `screens/{dashboard,visit-list,visit-detail,visit-create,visit-edit,visit-status-transition,visit-delete-confirm}.md`
+3. **セルフレビュー**: 業務ルール（Approved 編集不可、Draft 削除のみ、マネージャーのみ承認）が screens で UI 表現として明文化されているか確認
+4. **コードは書かない**（実装は Step 4-B）
+
+### Step 4-B: Next.js 実装フェーズ
+1. `04-frontend-nextjs/output/design/` を **唯一の真実** として `nextjs-frontend-implementer` Agent が TDD 実装
+2. Phase 0: pnpm + Next.js 15 + TS 5 + Tailwind + shadcn/ui add で初期化
+3. Phase 1〜3: `lib/schemas.ts` (Zod) → BFF Route Handler (msw でモックテスト) → ドメインコンポーネントを **テストファースト** で
+4. Phase 4: ページ実装（App Router）→ Phase 5: Playwright E2E (P0 4 シナリオ) → Phase 6: Dockerfile (multi-stage)
+5. **セルフレビュー**: `pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm e2e` 全 PASS、`docker compose --profile nextjs up -d --build` で `http://localhost:3000` が 200
 
 ### Step 6: ADR + ロードマップ + アクションアイテム生成
 1. 全 Step の成果物を踏まえた ADR を生成 → `06-roadmap/output/adr.md`
@@ -87,11 +95,15 @@
 /clear
 /schema-convert ./examples
 
-# ... Step 4 の場合
+# ... Step 4 の場合（設計フェーズ → 実装フェーズの 2 段で品質ゲートも 2 回）
 /clear
-/generate-a2ui-frontend
+/design-frontend
 /clear
-/review-gate 4
+/review-gate 4-A
+/clear
+/implement-frontend
+/clear
+/review-gate 4-B
 ```
 
 ## 完了条件
@@ -111,9 +123,12 @@
 - [ ] `03-code-modernization/output/app/` (Python プロジェクト)
 - [ ] `03-code-modernization/output/tests/` (テストコード)
 - [ ] `03-code-modernization/output/Dockerfile`
-- [ ] `04-frontend-a2ui/output/agent/agent.py`
-- [ ] `04-frontend-a2ui/output/main.py`
-- [ ] `04-frontend-a2ui/output/renderer/package.json`
+- [ ] `04-frontend-nextjs/output/design/overview.md`（Step 4-A）
+- [ ] `04-frontend-nextjs/output/design/screens/` 配下に P0 7 ファイル（Step 4-A）
+- [ ] `04-frontend-nextjs/output/package.json`（Step 4-B）
+- [ ] `04-frontend-nextjs/output/app/layout.tsx`（Step 4-B）
+- [ ] `04-frontend-nextjs/output/app/api/visits/route.ts`（Step 4-B BFF）
+- [ ] `04-frontend-nextjs/output/Dockerfile`（Step 4-B）
 - [ ] `06-roadmap/output/adr.md`
 - [ ] `06-roadmap/output/roadmap.md`
 - [ ] `06-roadmap/output/action_items.md`

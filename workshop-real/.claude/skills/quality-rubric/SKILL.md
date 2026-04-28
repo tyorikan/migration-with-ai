@@ -101,6 +101,112 @@ A〜E のいずれかが ❌ の場合、関連評価軸のスコアを 1 段階
 
 ---
 
+## Step 4-A: Next.js フロントエンド設計フェーズ — ルーブリック
+
+`04-frontend-nextjs/output/design/` 配下の markdown 設計書を評価する。
+
+### 評価軸
+
+| 軸 | 1 (不合格) | 2 (不十分) | 3 (合格ライン) | 4 (良好) | 5 (優秀) |
+|----|-----------|-----------|--------------|---------|---------|
+| **網羅性** | design/ が空 | overview のみ | overview + design-system + api-client + data-model + screens 7 枚すべて存在 | 上記 + 各 screens で固定 8 セクション全部記載 | 上記 + P1 画面（店舗一覧・月次サマリー）も設計済み |
+| **業務ルール表現** | ステータス遷移すら言及なし | 一部のみ | system_overview.md の主要ルール（ステータス遷移マトリクス・Approved 編集不可・Draft 削除のみ）が screens/*.md で UI 制御として明文化 | 上記 + 重複防止・メール通知・ロール別ボタン表示 も明文化 | 上記 + エラーケースの UX も全部記述（VISIT_NOT_FOUND / BUSINESS_ERROR / VALIDATION_ERROR） |
+| **API 整合性** | api-client.md なし | 一部のみ記載 | Backend (`03-code-modernization/output/app/router/`) のすべての P0 エンドポイントが BFF Route Handler と 1:1 対応表で記載 | 上記 + エラーコードマッピング表あり | 上記 + リクエスト/レスポンスのサンプル JSON あり |
+| **データモデル整合** | data-model.md なし | フィールド名が Backend と不一致 | data-model.md の Zod 案が Backend Pydantic と フィールド名・型・必須・enum すべて一致 | 上記 + camelCase ↔ snake_case の境界が明文化 | 上記 + `openapi-typescript` などの自動生成方針も記載 |
+| **ワイヤー品質** | ワイヤーなし | テキスト羅列のみ | ASCII または Mermaid のワイヤーがあり、コンポーネントツリー・API と齟齬なく対応 | 上記 + 状態（loading/empty/error）ごとのワイヤー差分あり | 上記 + a11y（キーボード操作・ARIA）の指針あり |
+
+### Step 4-A レビュー時の必須機械的確認
+
+```bash
+DESIGN_DIR=04-frontend-nextjs/output/design
+
+# A. 5 種主要 .md の存在
+for f in overview design-system api-client data-model; do
+  test -f "$DESIGN_DIR/$f.md" || echo "🔴 $DESIGN_DIR/$f.md がない"
+done
+
+# B. P0 画面 7 枚分の screens/*.md の存在
+for s in dashboard visit-list visit-detail visit-create visit-edit visit-status-transition visit-delete-confirm; do
+  test -f "$DESIGN_DIR/screens/$s.md" || echo "🔴 $DESIGN_DIR/screens/$s.md がない"
+done
+
+# C. 各 screens/*.md に固定セクションが揃っているか
+for f in "$DESIGN_DIR/screens/"*.md; do
+  for sec in "目的" "ワイヤー" "状態" "バリデーション" "API 呼び出し" "コンポーネントツリー" "アクセシビリティ" "エラー時 UX"; do
+    grep -q "## $sec" "$f" 2>/dev/null \
+      || echo "🟡 $f に '## $sec' がない"
+  done
+done
+
+# D. Backend エンドポイント全カバレッジ（grep で BFF 一覧の対応表をチェック）
+grep -E "^\| /api/" "$DESIGN_DIR/api-client.md" | wc -l
+# Backend のエンドポイント数（5: GET /store-visits, GET /:id, POST, PATCH /:id, DELETE /:id）と比較
+
+# E. Mermaid のレンダリング（mermaid-cli が使える場合）
+command -v mmdc >/dev/null 2>&1 && grep -l '```mermaid' "$DESIGN_DIR"/*.md "$DESIGN_DIR"/screens/*.md \
+  | xargs -I {} mmdc -i {} -o /tmp/_mermaid_test.svg 2>&1 | grep -i error
+```
+
+A〜D のいずれかが ❌ の場合、関連評価軸を 1 段階ずつ下げる。
+
+---
+
+## Step 4-B: Next.js フロントエンド実装フェーズ — ルーブリック
+
+`04-frontend-nextjs/output/` 配下の Next.js プロジェクト一式を評価する。
+
+### 評価軸
+
+| 軸 | 1 (不合格) | 2 (不十分) | 3 (合格ライン) | 4 (良好) | 5 (優秀) |
+|----|-----------|-----------|--------------|---------|---------|
+| **設計と実装の一致** | 実装が設計と乖離 | 一部の画面のみ実装 | design/screens/X.md の全 P0 画面に対応する `app/visits/.../page.tsx` が存在 + コンポーネントツリーが一致 | 上記 + ドメインコンポーネント名 (`VisitListTable` 等) が設計通り | 上記 + design-system.md の Tailwind トークンが実装に反映 |
+| **業務ルール UI 制御** | Approved 編集ボタンが出る等、ルール違反 | 一部のみ守る | Approved 編集ボタン非表示 / Draft のみ削除可 / マネージャーのみ承認 が grep で確認できる | 上記 + 重複防止エラーの UX 表示 + Submitted の編集不可注記 | 上記 + ロール別ナビゲーション制御 |
+| **テスト充足** | テスト 0 件 | unit のみ | Vitest 全 PASS + Playwright P0 4 シナリオ PASS + Route Handler / schemas のカバレッジ 70%+ | 上記 + ドメインコンポーネントの a11y テストあり | 上記 + Visual regression または Storybook 連携 |
+| **静的解析** | typecheck エラー多数 | typecheck PASS だが lint エラー多数 | `pnpm typecheck` 0 エラー + `pnpm lint` 0 エラー | 上記 + `pnpm format` でフォーマット統一 | 上記 + biome/eslint の strict ルール採用 |
+| **本番動作** | docker build 失敗 | build 通るが起動しない | `docker compose --profile nextjs up -d --build` で http://localhost:3000 が 200 + BFF が Backend にプロキシして JSON 返却 | 上記 + Server Component / Client Component の使い分けが適切 | 上記 + `next start` で SSR / SSG / ISR の最適化済み |
+
+### Step 4-B レビュー時の必須機械的確認
+
+```bash
+cd 04-frontend-nextjs/output
+
+# A. 必須ファイルの存在
+for f in package.json next.config.ts tailwind.config.ts vitest.config.ts playwright.config.ts Dockerfile app/layout.tsx app/page.tsx; do
+  test -f "$f" || echo "🔴 $f がない"
+done
+
+# B. BFF Route Handler の網羅
+test -f app/api/visits/route.ts || echo "🔴 app/api/visits/route.ts がない"
+test -f app/api/visits/\[id\]/route.ts || echo "🔴 app/api/visits/[id]/route.ts がない"
+
+# C. server-only の遵守
+grep -lE "from\s+['\"]@/lib/backend['\"]" components/ app/ 2>/dev/null \
+  | grep -v "/api/" \
+  && echo "🟡 client から lib/backend が import されている"
+
+# D. 業務ルール UI 制御の grep
+grep -rnE "(Approved|status\s*===\s*['\"]Approved)" components/ app/ 2>/dev/null \
+  | head -5
+# Approved 関連の分岐が見えれば OK
+
+# E. typecheck / lint / unit / e2e
+pnpm install --frozen-lockfile 2>&1 | tail -3
+pnpm typecheck     # → エラー 0
+pnpm lint          # → エラー 0
+pnpm test          # Vitest 全 PASS
+# E2E は dev server を起動する必要あり
+docker compose --profile nextjs up -d --build
+sleep 5
+curl -fsS http://localhost:3000/healthz 2>&1 | head -1
+curl -fsS http://localhost:3000/api/visits 2>&1 | head -1
+pnpm e2e
+docker compose --profile nextjs down
+```
+
+A〜E のいずれかが ❌ の場合、関連評価軸を 1 段階ずつ下げる。
+
+---
+
 ## レビューレポート出力フォーマット
 
 ```markdown

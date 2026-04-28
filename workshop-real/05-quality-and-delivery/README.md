@@ -59,8 +59,10 @@ cat workshop-state.json | jq '.steps'
 | Step 2: 独立コンテキストレビュー | `/review-gate 2` | ☐ PASS / FAIL |
 | Step 3: TDD（テスト先行） | `pytest -v` | ☐ X 件 PASS |
 | Step 3: 独立コンテキストレビュー | `/review-gate 3` | ☐ PASS / FAIL |
-| Step 4: A2UI フロントエンド検証 | `/review-gate 4` | ☐ PASS / FAIL |
+| Step 4-A: Next.js 設計書レビュー | `/review-gate 4-A` | ☐ PASS / FAIL |
+| Step 4-B: Next.js 実装レビュー | `/review-gate 4-B` | ☐ PASS / FAIL |
 | 統合テスト（docker-compose） | `pytest tests/` | ☐ CRUD 全操作成功 |
+| Frontend E2E（Playwright） | `pnpm e2e` | ☐ P0 4 シナリオ PASS |
 
 ---
 

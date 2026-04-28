@@ -24,10 +24,10 @@
 | **AI ツール** | Claude Code via Vertex AI（Claude Opus model） |
 | **参加者** | PM、アーキテクト、SE（パートナー含）11名以上 |
 | **Backend 言語** | Python（FastAPI） |
-| **Frontend** | A2UI + Lit Renderer（Step 4 で AI が自動生成） |
+| **Frontend** | Next.js 15 (App Router) + TypeScript + shadcn/ui + Tailwind + TanStack Query + Zod（Step 4 で AI が設計→実装） |
 | **DB** | Cloud SQL（PostgreSQL） |
 | **実行環境** | 参加者のローカル環境 or Cloud Shell |
-| **コンテナ管理** | docker-compose（PostgreSQL + App のコンテナ間通信） |
+| **コンテナ管理** | docker-compose（PostgreSQL + Backend + Next.js のコンテナ間通信） |
 
 ### お客様が持っていると想定するソースコード
 
@@ -52,10 +52,11 @@
 | 13:00–13:45 | **Step 2** | DB スキーマ移行＋実データ投入 | DDL 変換 → SFDC CSV 変換・投入 → クエリ検証 | DDL、データ変換スクリプト、SOQL→SQL |
 | 13:45–14:45 | **Step 3** | TDD コードモダナイズ PoC（Python） | テストシナリオ→🔴RED→🟢GREEN→🔵REFACTOR | テスト＋実装＋コンテナ間CRUD検証 |
 | 14:45–15:00 | | ☕ 休憩 | | |
-| 15:00–15:30 | **Step 4** 🆕 | **A2UI フロントエンド生成** | ADK Agent + Lit Renderer で管理画面を自動構築 | A2UI Agent＋リッチ管理画面 |
-| 15:30–16:00 | **Step 5** | AI 成果物の品質評価＆デリバリー戦略 | 統合テスト＋品質フレームワーク議論 | 品質評価フレームワーク |
-| 16:00–16:45 | **Step 6** | 移行ロードマップ策定 | ADR 自動生成＋Phase 計画 | 移行計画書、ADR |
-| 16:45–17:00 | **Step 7** | クロージング＆ネクストステップ | アクションアイテム確定 | アクションアイテム一覧 |
+| 15:00–15:15 | **Step 4-A**| **Next.js 設計フェーズ** | `/design-frontend` で中粒度 markdown 設計書（11 ファイル）を生成 | `04-frontend-nextjs/output/design/` |
+| 15:15–15:45 | **Step 4-B**| **Next.js 実装フェーズ** | 設計書を真実とした TDD 実装（Vitest + Playwright） | `04-frontend-nextjs/output/{app,components,lib,tests}/` |
+| 15:45–16:15 | **Step 5** | AI 成果物の品質評価＆デリバリー戦略 | 統合テスト＋品質フレームワーク議論 | 品質評価フレームワーク |
+| 16:15–17:00 | **Step 6** | 移行ロードマップ策定 | ADR 自動生成＋Phase 計画 | 移行計画書、ADR |
+| 17:00–17:15 | **Step 7** | クロージング＆ネクストステップ | アクションアイテム確定 | アクションアイテム一覧 |
 
 ### 全体の流れ
 
@@ -64,14 +65,16 @@ graph LR
     S0["Step 0<br/>キックオフ<br/>(30min)"] --> S1["Step 1<br/>🔑 設計逆起こし<br/>(90min)"]
     S1 --> S2["Step 2<br/>DB スキーマ<br/>+ データ検証<br/>(45min)"]
     S2 --> S3["Step 3<br/>TDD コード変換<br/>(60min)"]
-    S3 --> S4["Step 4<br/>🆕 A2UI Frontend<br/>(30min)"]
-    S4 --> S5["Step 5<br/>品質評価<br/>(30min)"]
+    S3 --> S4A["Step 4-A<br/>Next.js 設計<br/>(15min)"]
+    S4A --> S4B["Step 4-B<br/>Next.js 実装<br/>(30min)"]
+    S4B --> S5["Step 5<br/>品質評価<br/>(30min)"]
     S5 --> S6["Step 6<br/>ロードマップ<br/>(45min)"]
     S6 --> S7["Step 7<br/>クロージング<br/>(15min)"]
 
     style S1 fill:#34A853,color:#fff
     style S3 fill:#4285F4,color:#fff
-    style S4 fill:#EA4335,color:#fff
+    style S4A fill:#EA4335,color:#fff
+    style S4B fill:#EA4335,color:#fff
     style S5 fill:#FBBC04,color:#000
 ```
 
@@ -87,12 +90,16 @@ graph LR
 graph LR
     subgraph "docker-compose"
         DB["🐘 PostgreSQL<br/>(db)"]
-        APP["🐍 FastAPI App<br/>(app)"]
+        APP["🐍 FastAPI Backend<br/>(app:8080)"]
+        NEXT["⚛️ Next.js + BFF<br/>(nextjs:3000)"]
     end
     CLI["💻 参加者の端末<br/>(curl / Claude Code)"]
+    BROWSER["🌐 Browser"]
 
-    CLI -->|"curl :8080"| APP
+    BROWSER -->|"http :3000"| NEXT
+    NEXT -->|"BFF Route Handler<br/>http://app:8080/api/v1"| APP
     APP -->|"SQLAlchemy<br/>port 5432"| DB
+    CLI -->|"curl :8080"| APP
     CLI -->|"psql (exec)"| DB
 ```
 
@@ -100,11 +107,14 @@ graph LR
 # Step 2: DB だけ起動して DDL 適用・データ投入
 docker compose up -d db
 
-# Step 3-4: アプリ + A2UI Renderer も含めて起動、コンテナ間 CRUD 検証
-docker compose up -d --build
+# Step 3: Backend (app) を起動して CRUD 検証
+docker compose --profile step3 up -d --build
+
+# Step 4: Backend + Next.js Frontend を起動（BFF Route Handler 経由で app:8080 を呼ぶ）
+docker compose --profile nextjs up -d --build
 
 # クリーンアップ
-docker compose down -v
+docker compose --profile nextjs --profile step3 down -v
 ```
 
 ---
@@ -130,26 +140,28 @@ workshop-real/
 │   │   ├── import-data.md             ←   /import-data（Step 2）
 │   │   ├── extract-test-scenarios.md  ←   /extract-test-scenarios（Step 3）
 │   │   ├── generate-and-implement.md  ←   /generate-and-implement（Step 3）
-│   │   ├── generate-a2ui-frontend.md  ←   /generate-a2ui-frontend（Step 4）🆕
+│   │   ├── design-frontend.md         ←   /design-frontend（Step 4-A 設計）
+│   │   ├── implement-frontend.md      ←   /implement-frontend（Step 4-B 実装）
 │   │   └── generate-adr.md            ←   /generate-adr（Step 6）
 │   ├── agents/                        ← 🤖 特化型エージェント
 │   │   ├── sfdc-analyzer.md           ←   Step 1: SFDX 分析 → 設計書生成
 │   │   ├── schema-converter.md        ←   Step 2: DDL 生成 + データ移行
 │   │   ├── python-modernizer.md       ←   Step 3: TDD で Apex → Python 変換
-│   │   ├── a2ui-frontend-generator.md ←   Step 4: A2UI フロントエンド生成 🆕
-│   │   ├── migration-reviewer.md      ←   Step 5-6: スコアリングレビュー + ゲートチェック
+│   │   ├── nextjs-frontend-designer.md    ← Step 4-A: 中粒度 markdown 設計書を生成
+│   │   ├── nextjs-frontend-implementer.md ← Step 4-B: 設計書を真実とした TDD 実装
+│   │   └── migration-reviewer.md      ←   Step 5-6: スコアリングレビュー + ゲートチェック
 │   └── skills/                        ← 📖 ドメインナレッジモジュール
 │       ├── reverse-engineering/SKILL.md   ← 逆起こしルール + 出力フォーマット
 │       ├── sfdc-schema-migration/SKILL.md ← 型マッピング + 命名規則 + DDL テンプレート
 │       ├── sfdc-to-python/SKILL.md        ← ガバナ制限/Trigger/Batch 変換パターン
 │       ├── tdd-modernize/SKILL.md         ← Apex テスト → pytest + TDD ワークフロー
-│       ├── a2ui-frontend/SKILL.md         ← 🆕 A2UI 変換パターン + ADK 統合
-│       └── quality-rubric/SKILL.md        ← 成果物スコアリング基準（1-5 評価）
-├── workshop-state.json                ← 🆕 進捗・メトリクス・レビュースコアの状態管理
+│       ├── nextjs-frontend/SKILL.md       ← App Router + shadcn/ui + BFF + Zod パターン集
+│       └── quality-rubric/SKILL.md        ← 成果物スコアリング基準（1-5 評価、Step 4-A/4-B 含む）
+├── workshop-state.json                ← 進捗・メトリクス・レビュースコアの状態管理
 ├── scripts/
 │   ├── check-progress.sh             ← 📊 進行チェックスクリプト
-│   ├── update-state.sh               ← 🆕 workshop-state.json 更新スクリプト
-│   └── verify-consistency.sh         ← 🆕 Step 間整合性チェックスクリプト
+│   ├── update-state.sh               ← workshop-state.json 更新スクリプト
+│   └── verify-consistency.sh         ← Step 間整合性チェックスクリプト
 ├── data/                              ← 📂 SFDC エクスポート CSV 置き場
 ├── 00-preparation/
 │   └── README.md                      ← 事前準備チェックリスト
@@ -167,13 +179,19 @@ workshop-real/
 ├── 03-code-modernization/
 │   ├── README.md                      ← TDD コードモダナイズ PoC ガイド
 │   └── output/                        ← Python プロジェクト + Dockerfile
-├── 04-frontend-a2ui/                  ← 🆕 A2UI フロントエンド生成
-│   ├── README.md                      ← ADK Agent + Lit Renderer ガイド
-│   └── output/                        ← Agent コード + Renderer
-├── 05-quality-and-delivery/           ← 旧 Step 4
+├── 04-frontend-nextjs/                ← Next.js フロントエンド (設計 + 実装)
+│   ├── README.md                      ← /design-frontend → /implement-frontend ガイド
+│   └── output/
+│       ├── design/                    ← Step 4-A 中粒度 markdown 設計書 (11 ファイル)
+│       ├── app/                       ← Step 4-B Next.js App Router (RSC + BFF Route Handler)
+│       ├── components/                ← shadcn/ui + ドメインコンポーネント
+│       ├── lib/                       ← BFF クライアント / Zod / auth
+│       ├── tests/                     ← Vitest (unit) + Playwright (E2E)
+│       └── Dockerfile                 ← multi-stage (deps → build → next start)
+├── 05-quality-and-delivery/
 │   ├── README.md                      ← AI 成果物の品質評価＆デリバリー戦略
 │   └── output/
-├── 06-roadmap/                        ← 旧 Step 5
+├── 06-roadmap/
 │   ├── README.md                      ← 移行ロードマップ策定
 │   └── output/                        ← ADR、ロードマップ
 └── examples/                          ← サンプル SFDX プロジェクト（検証用）
@@ -211,10 +229,11 @@ workshop-real/
 | 2 | `/import-data <path>` | SFDC CSV → PostgreSQL データ投入スクリプト生成 |
 | 3 | `/extract-test-scenarios <path>` | Apex からテストシナリオを抽出 |
 | 3 | `/generate-and-implement` | テストコード生成（RED）→ 実装（GREEN）を一気に実行 |
-| 4 | `/generate-a2ui-frontend` | 🆕 ADK Agent + Lit Renderer で A2UI フロントエンドを自動生成 |
+| 4-A | `/design-frontend` |Next.js の中粒度 markdown 設計書（screens/api-client/data-model 等 11 ファイル）を生成 |
+| 4-B | `/implement-frontend` |設計書を真実とした TDD 実装（Next.js + shadcn/ui + Vitest + Playwright） |
 | 6 | `/generate-adr` | ADR（技術選定の意思決定記録）+ 移行ロードマップ + アクションアイテム一覧を自動生成 |
-| 全体 | `/run-workshop <path>` | Step 1→2→3→4→6 を順序通りにチェーン実行（オーケストレーション） |
-| 品質 | `/review-gate [N]` | 独立コンテキストでの品質ゲートチェック（`/clear` 後に実行） |
+| 全体 | `/run-workshop <path>` | Step 1→2→3→4-A→4-B→6 を順序通りにチェーン実行（オーケストレーション） |
+| 品質 | `/review-gate [N]` | 独立コンテキストでの品質ゲートチェック（`/clear` 後に実行）。Step 4 は `4-A` / `4-B` の二段 |
 
 ---
 
@@ -388,12 +407,51 @@ flowchart LR
 
 ---
 
-#### Step 4-5: 品質評価 + ロードマップ（90分）
+#### Step 4: Next.js Frontend — 設計 (4-A) → 実装 (4-B)（45分）
 
 ```mermaid
 flowchart LR
     subgraph "参加者の操作"
-        C7["/generate-adr"]
+        C7["/design-frontend"]
+        C8["/implement-frontend"]
+    end
+
+    subgraph "Agent: nextjs-frontend-designer"
+        F1["設計フェーズ:<br/>Step 1 業務要件<br/>+ Step 3 API 仕様 を分析"]
+        F2["design/screens/*.md (P0 7枚)<br/>+ overview/api-client/<br/>data-model/design-system"]
+    end
+
+    subgraph "Agent: nextjs-frontend-implementer"
+        G1["実装フェーズ:<br/>design/ を真実とし TDD"]
+        G2["pnpm + Next.js 15<br/>+ shadcn/ui add"]
+        G3["Vitest unit → 実装<br/>→ Playwright E2E"]
+    end
+
+    subgraph "参照 Skill"
+        S5["📖 nextjs-frontend"]
+    end
+
+    C7 --> F1 --> F2
+    C8 --> G1 --> G2 --> G3
+    F1 -.->|"BFF パターン<br/>shadcn/ui 一覧<br/>Zod 同期戦略"| S5
+    G3 -.->|"BFF Route Handler テンプレ<br/>Vitest/Playwright ひな形"| S5
+
+    style C7 fill:#4285F4,color:#fff
+    style C8 fill:#4285F4,color:#fff
+    style S5 fill:#FBBC04,color:#000
+```
+
+| コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
+|---------|-----------|-----------|----------|------|
+| `/design-frontend` | `nextjs-frontend-designer` | `nextjs-frontend` | Step 1 system_overview + Step 3 router/schemas を分析 → 中粒度 markdown 設計書 11 ファイル（overview, design-system, api-client, data-model + screens 7 枚）を生成。**コードは書かない** | `04-frontend-nextjs/output/design/` |
+| `/implement-frontend` | `nextjs-frontend-implementer` | `nextjs-frontend` + `tdd-modernize` | design/ を唯一の真実として TDD 実装。pnpm + Next.js 15 + shadcn/ui add → Zod スキーマ → BFF Route Handler → ドメインコンポーネント → ページ → Playwright E2E → Dockerfile | `04-frontend-nextjs/output/{app,components,lib,tests}/`、`Dockerfile` |
+
+#### Step 5-6: 品質評価 + ロードマップ（75分）
+
+```mermaid
+flowchart LR
+    subgraph "参加者の操作"
+        C9["/generate-adr"]
     end
 
     subgraph "Agent: migration-reviewer"
@@ -403,21 +461,20 @@ flowchart LR
     end
 
     subgraph "全 Skills を横断参照"
-        S5["📖 全 Skills"]
+        S6["📖 全 Skills"]
     end
 
-    C7 --> E1 --> E2 --> E3
-    E1 -.->|"各 Skill の<br/>チェックリスト"| S5
+    C9 --> E1 --> E2 --> E3
+    E1 -.->|"各 Skill の<br/>チェックリスト"| S6
 
-    style C7 fill:#4285F4,color:#fff
-    style S5 fill:#FBBC04,color:#000
+    style C9 fill:#4285F4,color:#fff
+    style S6 fill:#FBBC04,color:#000
 ```
 
 | コマンド | 起動 Agent | 参照 Skill | AI の挙動 | 出力 |
 |---------|-----------|-----------|----------|------|
-| `/generate-a2ui-frontend` | `a2ui-frontend-generator` | `a2ui-frontend` | Step 3 の FastAPI Router + Pydantic Schema を分析 → ADK Agent + A2UI JSON 生成 + `get_fast_api_app()` で既存 Router マージ + Lit Renderer セットアップ | `04-frontend-a2ui/output/` |
 | `/generate-adr` | `migration-reviewer` | 全 Skills | Step 1-4 の成果物を横断レビュー → ADR 生成（言語/DB/基盤/品質保証/データ移行方式/フロントエンド、SFDC→GCP マッピング図）+ 本日の実績ベースの移行ロードマップ（Phase 0-3、Mermaid gantt）+ アクションアイテム一覧（担当・期限・依存・優先度付き） | `06-roadmap/output/adr.md`<br/>`06-roadmap/output/roadmap.md`<br/>`06-roadmap/output/action_items.md` |
-| （自動実行） | `migration-reviewer` | 全 Skills | 各 Step 完了時にゲートチェック実行。Step 間のデータ連携整合性（オブジェクト⊆テーブル⊆モデル）を検証 | レビューレポート |
+| （自動実行） | `migration-reviewer` | 全 Skills | 各 Step 完了時にゲートチェック実行。Step 間のデータ連携整合性（オブジェクト⊆テーブル⊆モデル、BFF↔Backend エンドポイント対応）を検証 | レビューレポート |
 
 ---
 
@@ -425,7 +482,7 @@ flowchart LR
 
 | コマンド | 挙動 |
 |---------|------|
-| `/run-workshop` | Step 1→2→3→4→6 を自動チェーン実行。各 Step 完了後に `migration-reviewer` Agent でゲートチェックを行い、FAIL なら自動修正ループを回してから次の Step へ進む |
+| `/run-workshop` | Step 1→2→3→4-A→4-B→6 を自動チェーン実行。各 Step 完了後に `migration-reviewer` Agent でゲートチェックを行い、FAIL なら自動修正ループを回してから次の Step へ進む |
 
 ```mermaid
 flowchart TD
@@ -449,9 +506,14 @@ flowchart TD
         S3R["migration-reviewer<br/>ゲートチェック"]
     end
 
-    subgraph "Step 4 🆕"
-        S4A["a2ui-frontend-generator Agent"]
-        S4R["migration-reviewer<br/>ゲートチェック"]
+    subgraph "Step 4-A"
+        S4Da["nextjs-frontend-designer Agent"]
+        S4Dr["migration-reviewer<br/>(/review-gate 4-A)"]
+    end
+
+    subgraph "Step 4-B"
+        S4Ia["nextjs-frontend-implementer Agent"]
+        S4Ir["migration-reviewer<br/>(/review-gate 4-B)"]
     end
 
     subgraph "Step 6"
@@ -465,11 +527,14 @@ flowchart TD
     S2R -->|"✅ PASS"| S3A
     S2R -->|"❌ FAIL"| S2A
     S3A --> S3R
-    S3R -->|"✅ PASS"| S4A
+    S3R -->|"✅ PASS"| S4Da
     S3R -->|"❌ FAIL"| S3A
-    S4A --> S4R
-    S4R -->|"✅ PASS"| S6A
-    S4R -->|"❌ FAIL"| S4A
+    S4Da --> S4Dr
+    S4Dr -->|"✅ PASS"| S4Ia
+    S4Dr -->|"❌ FAIL"| S4Da
+    S4Ia --> S4Ir
+    S4Ir -->|"✅ PASS"| S6A
+    S4Ir -->|"❌ FAIL"| S4Ia
     S6A --> DONE["✅ 全成果物完成"]
 
     style RW fill:#4285F4,color:#fff
@@ -485,7 +550,9 @@ flowchart TD
 | `reverse-engineering` | `.claude/skills/reverse-engineering/SKILL.md` | 分析対象の優先度、出力フォーマット（system_overview.md 構成）、複雑度判定基準（Low/Medium/High/Critical）、Mermaid スタイルガイド | Step 1 |
 | `sfdc-schema-migration` | `.claude/skills/sfdc-schema-migration/SKILL.md` | 命名規則（`__c`除去→snake_case→複数形）、データ型マッピング（18種）、FK 依存関係のトポロジカルソート、標準フィールド処理、DDL テンプレート、データ移行スクリプトテンプレート | Step 2 |
 | `sfdc-to-python` | `.claude/skills/sfdc-to-python/SKILL.md` | ガバナ制限→シンプル設計、共有モデル→認可設計、Trigger→usecase 明示呼び出し、Batch→Cloud Run Jobs、Formula→計算戦略、承認→状態マシン、Apex テスト→pytest、よくある間違い集 | Step 3 |
-| `tdd-modernize` | `.claude/skills/tdd-modernize/SKILL.md` | RED→GREEN→REFACTOR サイクル、Apex テストデータ→`@pytest.fixture`、アサーション変換、例外テスト、conftest.py テンプレート、テスト品質チェックリスト | Step 3 |
+| `tdd-modernize` | `.claude/skills/tdd-modernize/SKILL.md` | RED→GREEN→REFACTOR サイクル、Apex テストデータ→`@pytest.fixture`、アサーション変換、例外テスト、conftest.py テンプレート、テスト品質チェックリスト | Step 3 / Step 4-B |
+| `nextjs-frontend`| `.claude/skills/nextjs-frontend/SKILL.md` | App Router (RSC + Client) パターン、shadcn/ui 追加手順、TanStack Query パターン、BFF Route Handler テンプレ、Zod ↔ Pydantic 同期戦略、ロール制御、Vitest/Playwright のひな形、業務ルール UI 制御チートシート | Step 4-A / Step 4-B |
+| `quality-rubric` | `.claude/skills/quality-rubric/SKILL.md` | 各 Step の 5 軸 × 5 段階スコアリング基準、合格基準（全軸 3/5 以上 + 平均 3.5/5 以上）、Step 4-A（設計）/ Step 4-B（実装）の独立評価軸 + 機械的検証コマンド | `/review-gate` 全 Step |
 
 ### Agents 一覧 — 特化型エージェントの詳細
 
@@ -494,7 +561,9 @@ flowchart TD
 | `sfdc-analyzer` | `.claude/agents/sfdc-analyzer.md` | Read, Grep, Glob, Write | Phase 0: ソース再帰探索 + ナレッジ抽出、Phase 1: Code Wiki 生成、Phase 2-7: ER 図生成・ビジネスロジック抽出・統合設計書生成 | 全ファイル網羅、Wiki ページ数一致、Mermaid レンダリング可能 |
 | `schema-converter` | `.claude/agents/schema-converter.md` | Read, Write, Bash, Grep | DDL 生成、データ移行、docker-compose 検証 | DDL が psql でエラーなし、FK 制約正確、行数一致 |
 | `python-modernizer` | `.claude/agents/python-modernizer.md` | Read, Write, Edit, Bash, Grep | Apex→Python 変換、TDD 実装、3層アーキテクチャ | カバレッジ 80%+、ruff/mypy パス、全 API 応答 |
-| `migration-reviewer` | `.claude/agents/migration-reviewer.md` | Read, Grep, Glob, Bash | スコアリングレビュー、Step 間整合性検証、独立コンテキストゲートチェック | 全軸 3/5 以上、平均 3.5/5 以上、CRITICAL 0 件 |
+| `nextjs-frontend-designer`| `.claude/agents/nextjs-frontend-designer.md` | Read, Write, Edit, Bash, Grep | Step 4-A: Step 1 業務要件 + Step 3 API 仕様を分析し、中粒度 markdown 設計書（11 ファイル）を生成。**コードは書かない** | design/ 11 ファイル揃う、業務ルール UI 表現明文化、API 1:1 対応、Mermaid 構文 OK |
+| `nextjs-frontend-implementer`| `.claude/agents/nextjs-frontend-implementer.md` | Read, Write, Edit, Bash, Grep | Step 4-B: design/ を真実とした TDD 実装（Vitest unit → 実装 → Playwright E2E）、shadcn/ui 追加、Dockerfile multi-stage | typecheck/lint 0 エラー、Vitest 70%+ カバレッジ、Playwright P0 4 シナリオ PASS、Backend 改変なし |
+| `migration-reviewer` | `.claude/agents/migration-reviewer.md` | Read, Grep, Glob, Bash | スコアリングレビュー、Step 間整合性検証、独立コンテキストゲートチェック（Step 4 は 4-A / 4-B 別々） | 全軸 3/5 以上、平均 3.5/5 以上、CRITICAL 0 件 |
 
 ---
 
@@ -506,7 +575,8 @@ flowchart TD
 | 1 | [AI 設計逆起こし](./01-reverse-engineering/README.md) | `/reverse-engineer`<br/>`/assess-migration` | `sfdc-analyzer` | `reverse-engineering` |
 | 2 | [DB スキーマ移行](./02-schema-migration/README.md) | `/schema-convert`<br/>`/import-data` | `schema-converter` | `sfdc-schema-migration` |
 | 3 | [TDD コードモダナイズ](./03-code-modernization/README.md) | `/extract-test-scenarios`<br/>`/generate-and-implement` | `python-modernizer` | `sfdc-to-python`<br/>`tdd-modernize` |
-| 4 | [🆕 A2UI フロントエンド生成](./04-frontend-a2ui/README.md) | `/generate-a2ui-frontend` | `a2ui-frontend-generator` | `a2ui-frontend` |
+| 4-A | [Next.js 設計](./04-frontend-nextjs/README.md) | `/design-frontend` | `nextjs-frontend-designer` | `nextjs-frontend` |
+| 4-B | [Next.js 実装](./04-frontend-nextjs/README.md) | `/implement-frontend` | `nextjs-frontend-implementer` | `nextjs-frontend`<br/>`tdd-modernize` |
 | 5 | [品質評価＆デリバリー](./05-quality-and-delivery/README.md) | — | `migration-reviewer` | 全 Skills |
 | 6 | [移行ロードマップ](./06-roadmap/README.md) | `/generate-adr` | `migration-reviewer` | 全 Skills |
 
@@ -589,11 +659,13 @@ graph TD
 
 | カテゴリ | 内容 |
 |---------|------|
-| **設計書** | AI が逆起こしした システム概要書、ER図、API 仕様書 |
+| **設計書 (Backend)** | AI が逆起こしした システム概要書、ER図、API 仕様書 |
 | **移行影響分析** | コンポーネント別の難易度スコアリング |
 | **DDL + SQL** | PostgreSQL 用スキーマ＋変換クエリ |
-| **PoC コード** | Python (FastAPI) プロジェクト一式 + テスト |
-| **docker-compose** | ローカル再現可能な統合環境 |
-| **ADR** | 技術選定の意思決定記録 |
+| **Backend PoC** | Python (FastAPI) プロジェクト一式 + pytest テスト + Dockerfile |
+| **Frontend 設計書**| Next.js 中粒度 markdown 設計書（screens/api-client/data-model 等 11 ファイル） |
+| **Frontend PoC**| Next.js (App Router) + shadcn/ui + BFF Route Handler + Vitest + Playwright + Dockerfile |
+| **docker-compose** | ローカル再現可能な統合環境（db + Backend + Next.js） |
+| **ADR** | 技術選定の意思決定記録（Backend / DB / 基盤 / 品質保証 / Frontend を含む） |
 | **ロードマップ** | Phase 分割した移行計画 |
-| **プロンプト集** | 他アプリにも再利用可能なテンプレート |
+| **プロンプト集** | 他アプリにも再利用可能なテンプレート（commands / agents / skills） |

@@ -108,19 +108,42 @@
     "step4": {
       "status": "not_started",
       "phases": {
-        "agent": {
+        "design": {
           "status": "not_started",
-          "output": "04-frontend-a2ui/output/agent/"
+          "output": "04-frontend-nextjs/output/design/",
+          "review": {
+            "score": null,
+            "gate_passed": false,
+            "reviewed_at": null,
+            "feedback_file": null
+          }
         },
-        "renderer": {
+        "implement": {
           "status": "not_started",
-          "output": "04-frontend-a2ui/output/renderer/"
+          "output": "04-frontend-nextjs/output/app/",
+          "review": {
+            "score": null,
+            "gate_passed": false,
+            "reviewed_at": null,
+            "feedback_file": null
+          }
         }
       },
       "metrics": {
-        "agent_tools_count": null,
-        "a2ui_components_used": null,
-        "rest_api_endpoints_mapped": null
+        "design_screens": null,
+        "pages_count": null,
+        "bff_route_handlers": null,
+        "components_count": null,
+        "vitest_tests": null,
+        "playwright_e2e_scenarios": null,
+        "typecheck_errors": null,
+        "lint_errors": null
+      },
+      "consistency": {
+        "backend_endpoints": null,
+        "bff_endpoints": null,
+        "endpoint_mapping_complete": false,
+        "healthz_reachable": false
       },
       "review": {
         "score": null,

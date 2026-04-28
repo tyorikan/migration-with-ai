@@ -59,6 +59,10 @@
         "output": {
           "type": "string",
           "description": "成果物のパス（ファイル or ディレクトリ）"
+        },
+        "review": {
+          "$ref": "#/definitions/review",
+          "description": "Phase 単位の独立レビュー（任意）。Step 4 のように設計フェーズ・実装フェーズで個別ゲートを設けたい場合に使う"
         }
       }
     },

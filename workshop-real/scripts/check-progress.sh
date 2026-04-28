@@ -207,29 +207,61 @@ step3() {
 
 # -------------------------------------------------------
 step4() {
-  echo -e "\n${BLUE}━━━ Step 4: A2UI フロントエンド生成 ━━━${NC}"
+  echo -e "\n${BLUE}━━━ Step 4: Next.js フロントエンド (設計 + 実装) ━━━${NC}"
   local ok=0 fail=0
 
-  if check_file "04-frontend-a2ui/output/main.py"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_file "04-frontend-a2ui/output/requirements.txt"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_dir "04-frontend-a2ui/output/agent"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  # ── Step 4-A: 設計フェーズ ──────────────────────────────────────
+  echo "  [4-A: 設計書 (design/)]"
+  for f in design/overview.md design/design-system.md design/api-client.md design/data-model.md; do
+    if check_file "04-frontend-nextjs/output/$f"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  done
+  local screens_ok=0 screens_total=7
+  for s in dashboard visit-list visit-detail visit-create visit-edit visit-status-transition visit-delete-confirm; do
+    if [ -f "04-frontend-nextjs/output/design/screens/$s.md" ]; then
+      screens_ok=$((screens_ok+1))
+    fi
+  done
+  if [ "$screens_ok" -eq "$screens_total" ]; then
+    echo -e "  ${GREEN}✅${NC} design/screens/ (P0 ${screens_ok}/${screens_total})"
+    ok=$((ok+1))
+  else
+    echo -e "  ${RED}❌${NC} design/screens/ (P0 ${screens_ok}/${screens_total} 不足)"
+    fail=$((fail+1))
+  fi
 
-  # ADK 慣習: agent/<agent_name>/{agent,tools,prompt_builder}.py
-  # エージェント名はエンティティ依存で可変なので glob で検出する
-  for fname in agent.py tools.py prompt_builder.py; do
-    local found
-    found=$(find 04-frontend-a2ui/output/agent -mindepth 1 -name "$fname" -type f 2>/dev/null | head -1)
-    if [ -n "$found" ]; then
-      echo -e "  ${GREEN}✅${NC} agent/**/${fname}"
+  # ── Step 4-B: 実装フェーズ ──────────────────────────────────────
+  echo "  [4-B: Next.js プロジェクト]"
+  for f in package.json tsconfig.json next.config.ts tailwind.config.ts Dockerfile; do
+    if check_file "04-frontend-nextjs/output/$f"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  done
+  for f in app/layout.tsx app/page.tsx app/api/visits/route.ts; do
+    if check_file "04-frontend-nextjs/output/$f"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  done
+
+  # P0 ページ
+  echo "  [P0 ページ実装]"
+  for p in "app/visits/page.tsx" "app/visits/new/page.tsx" "app/visits/[id]/page.tsx" "app/visits/[id]/edit/page.tsx"; do
+    if [ -f "04-frontend-nextjs/output/$p" ]; then
+      echo -e "  ${GREEN}✅${NC} ${p}"
       ok=$((ok+1))
     else
-      echo -e "  ${RED}❌${NC} agent/**/${fname} ${RED}(missing)${NC}"
+      echo -e "  ${RED}❌${NC} ${p} ${RED}(missing)${NC}"
       fail=$((fail+1))
     fi
   done
 
-  if check_dir "04-frontend-a2ui/output/renderer"; then ok=$((ok+1)); else fail=$((fail+1)); fi
-  if check_file "04-frontend-a2ui/output/renderer/package.json"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  # 共通ライブラリ
+  for f in lib/backend.ts lib/schemas.ts lib/auth.ts; do
+    if check_file "04-frontend-nextjs/output/$f"; then ok=$((ok+1)); else fail=$((fail+1)); fi
+  done
+
+  # コンテナ起動状況
+  if docker compose ps --format '{{.Name}}' 2>/dev/null | grep -q 'sfdc-migration-nextjs'; then
+    echo -e "  ${GREEN}✅${NC} Next.js コンテナ: 起動中"
+    ok=$((ok+1))
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  Next.js コンテナ未起動 (docker compose --profile nextjs up -d で起動可)"
+  fi
 
   echo -e "\n  ${GREEN}${ok} passed${NC}, ${RED}${fail} failed${NC}"
 }

@@ -46,62 +46,38 @@ services:
     # ソースコードをマウント（開発時のホットリロード用）
     volumes:
       - ./03-code-modernization/output:/app:ro
-    # app と app-a2ui は同じ 8080 を使うため profile で排他制御
+    # `app` は Step 3 単体でも、Step 4 (Next.js Frontend) と一緒でも使うので
+    # 両 profile に登録する。Step 4 では `nextjs` サービスが BFF 経由で `app:8080`
+    # を呼ぶため、両者を同時起動する必要がある。
     #   Step 3 単体起動: docker compose --profile step3 up -d
-    #   Step 4 統合起動: docker compose --profile a2ui   up -d
+    #   Step 4 統合起動: docker compose --profile nextjs up -d
     profiles:
       - step3
+      - nextjs
 
   # -------------------------------------------------------
-  # 🤖 FastAPI + ADK Agent + A2UI — Step 4 統合 Backend
+  # ⚛️ Next.js Frontend — Step 4 (BFF + 管理画面)
   # -------------------------------------------------------
-  # Step 3 の Backend に ADK Agent をマージした最終成果物。
-  # `app` と同じ 8080 を使うが profile で分離されるため同時起動は不可。
-  #   起動: docker compose --profile a2ui up -d
-  app-a2ui:
+  # Step 4-A の `/design-frontend` で設計 → Step 4-B の `/implement-frontend`
+  # で実装した Next.js (App Router) アプリ。Backend (`app:8080`) を BFF Route
+  # Handler 経由で呼ぶ構成のため、CORS 設定は不要。
+  #   起動: docker compose --profile nextjs up -d --build
+  nextjs:
     build:
-      context: ./04-frontend-a2ui/output
+      context: ./04-frontend-nextjs/output
       dockerfile: Dockerfile
-    container_name: sfdc-migration-app-a2ui
+    container_name: sfdc-migration-nextjs
     ports:
-      - "8080:8080"
+      - "3000:3000"
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: app_user
-      DB_PASSWORD: password
-      DB_NAME: migration_db
-      # Vertex AI: ホスト側で `export GOOGLE_CLOUD_PROJECT=...` してから起動すること
-      GOOGLE_GENAI_USE_VERTEXAI: "TRUE"
-      GOOGLE_CLOUD_PROJECT: "${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT in your shell before docker compose up}"
-      GOOGLE_CLOUD_LOCATION: "${GOOGLE_CLOUD_LOCATION:-us-central1}"
+      # BFF Route Handler が叩く Backend のベース URL（compose 内部 NW）
+      BACKEND_URL: http://app:8080/api/v1
+      NODE_ENV: production
     depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      # ホストの ADC を read-only でマウント（gcloud auth application-default login 済み前提）
-      - ${HOME}/.config/gcloud:/home/app/.config/gcloud:ro
+      app:
+        condition: service_started
     profiles:
-      - a2ui
-
-  # -------------------------------------------------------
-  # 🎨 A2UI Lit Renderer — フロントエンド（Step 4 で有効化）
-  # -------------------------------------------------------
-  # Step 4 の /generate-a2ui-frontend 実行後に有効化
-  a2ui-renderer:
-    build:
-      context: ./04-frontend-a2ui/output/renderer
-      dockerfile: Dockerfile
-    container_name: sfdc-migration-a2ui
-    ports:
-      - "5173:5173"
-    environment:
-      # Agent の接続先（app-a2ui コンテナの ADK エンドポイント）
-      AGENT_URL: http://app-a2ui:8080
-    depends_on:
-      - app-a2ui
-    profiles:
-      - a2ui  # docker compose --profile a2ui up で app-a2ui と一緒に起動
+      - nextjs
 
 volumes:
   pgdata:

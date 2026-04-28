@@ -5,7 +5,7 @@ Step 6: ADR + ロードマップ + アクションアイテムの自動生成
   - `01-reverse-engineering/output/`（設計書、影響分析）
   - `02-schema-migration/output/`（DDL、データ移行）
   - `03-code-modernization/output/`（Python プロジェクト、テスト）
-  - `04-frontend-a2ui/output/`（A2UI Agent + Renderer）
+  - `04-frontend-nextjs/output/`（Next.js 設計書 + 実装、BFF Route Handler、Vitest/Playwright テスト）
   - `05-quality-and-delivery/output/`（品質評価）
 - `06-roadmap/README.md`（議論テンプレート: Phase 分割、アクションアイテム雛形）
 - `workshop-state.json`（Step 別スコア、メトリクス、所要時間）
@@ -39,7 +39,7 @@ Step 6: ADR + ロードマップ + アクションアイテムの自動生成
 3. ADR-003: コンテナ基盤選定（Cloud Run） — 代替: GKE Autopilot
 4. ADR-004: AI 駆動開発の品質保証方針 — TDD + 多層品質ゲート
 5. ADR-005: データ移行方式 — sf CLI / Data Loader / Bulk API
-6. ADR-006: フロントエンド技術選定（A2UI + Lit） — 代替: React, Angular, Next.js
+6. ADR-006: フロントエンド技術選定（Next.js (App Router) + shadcn/ui + Tailwind + BFF Route Handler） — 代替: Remix, SvelteKit, Nuxt, Vue + Vite
 
 ### 追加で生成
 - アーキテクチャ全体図（Mermaid `graph TD`）— SFDC 構成 vs Google Cloud 構成を対比

@@ -348,186 +348,143 @@ END $$;'
 }
 
 # -------------------------------------------------------
-# Step 3 → Step 4: Backend 同一性 + A2UI 拡張チェック
+# Step 3 → Step 4: BFF Route Handler ↔ Backend エンドポイント整合
 # -------------------------------------------------------
-# 検証ポイント:
-#   1. Step 3 の app/ が Step 4 に同一内容でコピーされているか (diff -rq)
-#   2. Step 3 の tests/ が Step 4 に同一内容でコピーされているか
-#   3. A2UI Agent ファイル (agent/*, main.py) が存在するか
-#   4. main.py が get_fast_api_app() を使っているか
-#   5. requirements.txt に google-adk, a2ui-agent-sdk が追加されているか
-#   6. Renderer ディレクトリが存在するか
-#   7. tools.py が HTTP クライアントではなく UseCase 直接呼び出しか
-# 除外: __pycache__, *.pyc, .pytest_cache
+# Step 4 は独立した Next.js / TypeScript プロジェクトで、Backend は `app`
+# サービスとして HTTP 経由で呼ばれる前提。整合性検証の観点:
+#   1. Step 4 設計書（design/api-client.md 等）が存在するか
+#   2. Backend Router の各 P0 エンドポイントが BFF 側に対応 Route Handler
+#      を持つか（path を grep で確認）
+#   3. Next.js プロジェクトの最低限の構成ファイル（package.json,
+#      next.config.ts, app/layout.tsx, app/api/visits/route.ts, Dockerfile）
+#      が揃っているか
+#   4. Step 3 の Backend が Step 4 から触られていない（読み取り専用前提）
 # -------------------------------------------------------
 check_step3_to_step4() {
-  echo -e "\n${BLUE}━━━ Step 3 → Step 4: Backend 同一性 + A2UI Agent ━━━${NC}"
+  echo -e "\n${BLUE}━━━ Step 3 → Step 4: BFF ↔ Backend 整合 ━━━${NC}"
 
   local step3_dir="03-code-modernization/output"
-  local step4_dir="04-frontend-a2ui/output"
-  local diff_exclude="--exclude=__pycache__ --exclude=*.pyc --exclude=.pytest_cache"
+  local step4_dir="04-frontend-nextjs/output"
 
-  if [ ! -d "$step3_dir/app" ]; then
-    echo -e "  ${YELLOW}⚠️${NC}  $step3_dir/app が存在しません（Step 3 未完了）"
+  if [ ! -d "$step3_dir/app/router" ]; then
+    echo -e "  ${YELLOW}⚠️${NC}  $step3_dir/app/router が存在しません（Step 3 未完了）"
     return
   fi
   if [ ! -d "$step4_dir" ]; then
-    echo -e "  ${YELLOW}⚠️${NC}  $step4_dir が存在しません（Step 4 未完了）"
+    echo -e "  ${YELLOW}⚠️${NC}  $step4_dir が存在しません（Step 4 未着手）"
     return
   fi
 
-  # ── ① app/ のバイトレベル同一性チェック ──────────────────────────
-  echo "  [Step 3 app/ → Step 4 app/ 同一性]"
-  if [ -d "$step4_dir/app" ]; then
-    local app_diff
-    app_diff=$(diff -rq $diff_exclude "$step3_dir/app" "$step4_dir/app" 2>/dev/null || true)
-    if [ -z "$app_diff" ]; then
-      local file_count
-      file_count=$(find "$step3_dir/app" -name "*.py" -not -path "*__pycache__*" -type f | wc -l | tr -d ' ')
-      echo -e "  ${GREEN}✅${NC} app/ が完全一致 (${file_count} ファイル)"
-      ((TOTAL_OK++)) || true
+  # ── ① 設計書（Step 4-A）の存在 ────────────────────────────────────
+  echo "  [Step 4-A 設計書 (design/) の存在]"
+  local design_dir="$step4_dir/design"
+  local design_ok=true
+  for f in overview design-system api-client data-model; do
+    if [ -f "$design_dir/$f.md" ]; then
+      echo -e "    ${GREEN}✓${NC} design/$f.md"
     else
-      echo -e "  ${RED}❌${NC} app/ に差分あり（Step 4 で破壊的変更の可能性）:"
-      echo "$app_diff" | head -10 | while read -r m; do echo "     $m"; done
-      ((TOTAL_FAIL++)) || true
+      echo -e "    ${YELLOW}⚠${NC}  design/$f.md がない"
+      design_ok=false
     fi
-  else
-    echo -e "  ${RED}❌${NC} $step4_dir/app が存在しません（Backend 未コピー）"
-    ((TOTAL_FAIL++)) || true
-  fi
-
-  # ── ② tests/ のバイトレベル同一性チェック ────────────────────────
-  echo "  [Step 3 tests/ → Step 4 tests/ 同一性]"
-  if [ -d "$step3_dir/tests" ]; then
-    if [ -d "$step4_dir/tests" ]; then
-      local tests_diff
-      tests_diff=$(diff -rq $diff_exclude "$step3_dir/tests" "$step4_dir/tests" 2>/dev/null || true)
-      if [ -z "$tests_diff" ]; then
-        local test_count
-        test_count=$(find "$step3_dir/tests" -name "*.py" -not -path "*__pycache__*" -type f | wc -l | tr -d ' ')
-        echo -e "  ${GREEN}✅${NC} tests/ が完全一致 (${test_count} ファイル)"
-        ((TOTAL_OK++)) || true
-      else
-        echo -e "  ${RED}❌${NC} tests/ に差分あり:"
-        echo "$tests_diff" | head -10 | while read -r m; do echo "     $m"; done
-        ((TOTAL_FAIL++)) || true
-      fi
-    else
-      echo -e "  ${RED}❌${NC} $step4_dir/tests が存在しません"
-      ((TOTAL_FAIL++)) || true
+  done
+  local screens_count=0
+  for s in dashboard visit-list visit-detail visit-create visit-edit visit-status-transition visit-delete-confirm; do
+    if [ -f "$design_dir/screens/$s.md" ]; then
+      screens_count=$((screens_count + 1))
     fi
-  else
-    echo -e "  ${YELLOW}⚠️${NC}  $step3_dir/tests が存在しません（Step 3 テスト未生成）"
-  fi
-
-  # ── ③ A2UI Agent ファイル存在チェック ──────────────────────────
-  # Agent ディレクトリ名は実装依存（agent/ または agent/<agent_name>/）のため
-  # find で柔軟に検出する
-  echo "  [A2UI Agent ファイル確認]"
-  local agent_ok=true
-
-  # main.py（エントリポイント）
-  if [ -f "$step4_dir/main.py" ]; then
-    echo -e "    ${GREEN}✓${NC} main.py"
-  else
-    echo -e "    ${RED}✗${NC} main.py が存在しません"
-    agent_ok=false
-  fi
-
-  # agent.py（Agent 定義、サブディレクトリ内の場合あり）
-  local agent_py
-  agent_py=$(find "$step4_dir" -path "*/agent*" -name "agent.py" -type f 2>/dev/null | head -1)
-  if [ -n "$agent_py" ]; then
-    echo -e "    ${GREEN}✓${NC} ${agent_py#$step4_dir/}"
-  else
-    echo -e "    ${RED}✗${NC} agent.py が見つかりません（agent/ 配下に必要）"
-    agent_ok=false
-  fi
-
-  # tools.py（Tool 定義）
-  local tools_py
-  tools_py=$(find "$step4_dir" -path "*/agent*" -name "tools.py" -type f 2>/dev/null | head -1)
-  if [ -n "$tools_py" ]; then
-    echo -e "    ${GREEN}✓${NC} ${tools_py#$step4_dir/}"
-  else
-    echo -e "    ${RED}✗${NC} tools.py が見つかりません（agent/ 配下に必要）"
-    agent_ok=false
-  fi
-
-  if $agent_ok; then
-    echo -e "  ${GREEN}✅${NC} A2UI Agent ファイル完備"
+  done
+  echo -e "    [P0 画面 .md] ${screens_count}/7"
+  if $design_ok && [ "$screens_count" -eq 7 ]; then
+    echo -e "  ${GREEN}✅${NC} 設計書 11 ファイル揃っている"
     ((TOTAL_OK++)) || true
   else
-    echo -e "  ${RED}❌${NC} A2UI Agent ファイル不足"
-    ((TOTAL_FAIL++)) || true
+    echo -e "  ${YELLOW}⚠️${NC}  設計書未完了（/design-frontend を実行してください）"
   fi
 
-  # ── ④ main.py が get_fast_api_app() を使っているか ─────────────
-  echo "  [main.py パターン確認]"
-  if [ -f "$step4_dir/main.py" ]; then
-    if grep -q "get_fast_api_app" "$step4_dir/main.py"; then
-      echo -e "  ${GREEN}✅${NC} main.py に get_fast_api_app() 使用を確認"
-      ((TOTAL_OK++)) || true
+  # ── ② Next.js プロジェクト最小構成 ───────────────────────────────
+  echo "  [Next.js プロジェクト構成]"
+  local impl_ok=true
+  for f in package.json next.config.ts app/layout.tsx app/page.tsx app/api/visits/route.ts Dockerfile; do
+    if [ -f "$step4_dir/$f" ]; then
+      echo -e "    ${GREEN}✓${NC} $f"
     else
-      echo -e "  ${RED}❌${NC} main.py に get_fast_api_app() がありません"
-      ((TOTAL_FAIL++)) || true
+      echo -e "    ${YELLOW}⚠${NC}  $f がない"
+      impl_ok=false
     fi
-  fi
-
-  # ── ⑤ requirements.txt に A2UI 依存が含まれるか ────────────────
-  echo "  [依存パッケージ確認]"
-  if [ -f "$step4_dir/requirements.txt" ]; then
-    local deps_ok=true
-    for dep in "google-adk" "a2ui-agent-sdk"; do
-      if grep -qi "$dep" "$step4_dir/requirements.txt"; then
-        echo -e "    ${GREEN}✓${NC} $dep"
-      else
-        echo -e "    ${RED}✗${NC} $dep が requirements.txt にありません"
-        deps_ok=false
-      fi
-    done
-    if $deps_ok; then
-      echo -e "  ${GREEN}✅${NC} A2UI 依存パッケージ完備"
-      ((TOTAL_OK++)) || true
-    else
-      echo -e "  ${RED}❌${NC} A2UI 依存パッケージ不足"
-      ((TOTAL_FAIL++)) || true
-    fi
-  else
-    echo -e "  ${YELLOW}⚠️${NC}  $step4_dir/requirements.txt が存在しません"
-  fi
-
-  # ── ⑥ Renderer ディレクトリ確認 ────────────────────────────────
-  echo "  [Lit Renderer 確認]"
-  if [ -d "$step4_dir/renderer" ] && [ -f "$step4_dir/renderer/package.json" ]; then
-    echo -e "  ${GREEN}✅${NC} Lit Renderer ディレクトリ存在"
+  done
+  if $impl_ok; then
+    echo -e "  ${GREEN}✅${NC} Next.js 最低構成 OK"
     ((TOTAL_OK++)) || true
   else
-    echo -e "  ${YELLOW}⚠️${NC}  renderer/ が未セットアップ（Phase 2 未完了の可能性）"
+    echo -e "  ${YELLOW}⚠️${NC}  実装未完了（/implement-frontend を実行してください）"
   fi
 
-  # ── ⑦ Tool が REST ではなく UseCase 直接呼び出しか ─────────────
-  echo "  [Tool 実装パターン確認]"
-  if [ -n "$tools_py" ]; then
-    if grep -q "httpx\|requests\.get\|requests\.post" "$tools_py"; then
-      echo -e "  ${RED}❌${NC} tools.py が HTTP クライアントを使用（UseCase 直接呼び出しにすべき）"
-      ((TOTAL_FAIL++)) || true
-    elif grep -q "usecase\|repository\|UseCase\|Repository" "$tools_py"; then
-      echo -e "  ${GREEN}✅${NC} tools.py が UseCase/Repository を直接呼び出し"
+  # ── ③ BFF Route Handler ↔ Backend エンドポイント対応 ─────────────
+  # Backend の P0 エンドポイント (Step 3 router から自動抽出)
+  echo "  [BFF ↔ Backend エンドポイント対応]"
+  local backend_paths
+  backend_paths=$(grep -hoE '@router\.(get|post|patch|delete)\("[^"]+"' "$step3_dir/app/router/"*.py 2>/dev/null \
+    | sed -E 's/@router\.(get|post|patch|delete)\("([^"]+)"/\U\1\E \2/' | sort -u)
+  if [ -z "$backend_paths" ]; then
+    echo -e "    ${YELLOW}⚠${NC}  Backend Router からエンドポイントを抽出できませんでした"
+  else
+    echo "$backend_paths" | while read -r line; do echo "    [Backend] $line"; done
+  fi
+
+  if [ -d "$step4_dir/app/api" ]; then
+    local bff_count
+    bff_count=$(find "$step4_dir/app/api" -name "route.ts" -type f 2>/dev/null | wc -l | tr -d ' ')
+    echo -e "    [BFF Route Handler 数] ${bff_count}"
+
+    # P0: GET /store-visits, GET /:id, POST /, PATCH /:id, DELETE /:id  → 5 件想定
+    if [ "$bff_count" -ge 2 ]; then
+      echo -e "  ${GREEN}✅${NC} BFF Route Handler が ${bff_count} 件存在（最低 2 ファイルは route.ts と [id]/route.ts）"
       ((TOTAL_OK++)) || true
     else
-      echo -e "  ${YELLOW}⚠️${NC}  tools.py の実装パターンを判別できません"
+      echo -e "  ${YELLOW}⚠️${NC}  BFF Route Handler が不足（実装未完了）"
     fi
+
+    # workshop-state.json の metrics 更新
+    if command -v jq &>/dev/null && [ -f "workshop-state.json" ]; then
+      ./scripts/update-state.sh .steps.step4.metrics.bff_route_handlers "$bff_count" 2>/dev/null || true
+    fi
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  $step4_dir/app/api ディレクトリなし"
+  fi
+
+  # ── ④ Backend (Step 3 app/) が Step 4 から侵されていない ─────────
+  echo "  [Backend 改変禁止確認]"
+  if [ -d "$step4_dir/app" ] && [ -f "$step4_dir/app/main.py" ] && [ ! -f "$step4_dir/app/layout.tsx" ]; then
+    # 04-frontend-nextjs/output/app は Next.js App Router の app/。Python の main.py が
+    # 入り込んでいたら Step 3 の Backend を誤ってコピーしている。
+    echo -e "  ${RED}❌${NC} $step4_dir/app/ に Python ファイル (main.py) が混入。Next.js の app/ ディレクトリには入れない"
+    ((TOTAL_FAIL++)) || true
+  else
+    echo -e "  ${GREEN}✅${NC} Step 4 が Backend Python コードを含んでいない"
+    ((TOTAL_OK++)) || true
+  fi
+
+  # ── ⑤ healthz 疎通（コンテナ起動中の場合のみ）────────────────────
+  echo "  [Backend healthz 疎通確認 (コンテナ起動時のみ)]"
+  local healthz_reachable=false
+  if docker compose ps --format '{{.Name}}' 2>/dev/null | grep -q 'sfdc-migration-app$'; then
+    if docker compose exec -T app curl -fsS http://localhost:8080/healthz >/dev/null 2>&1; then
+      echo -e "  ${GREEN}✅${NC} app:8080/healthz → 200"
+      healthz_reachable=true
+      ((TOTAL_OK++)) || true
+    else
+      echo -e "  ${YELLOW}⚠️${NC}  app コンテナ起動中だが /healthz が反応しない"
+    fi
+  else
+    echo -e "  ${YELLOW}⚠${NC}  app コンテナ未起動（'docker compose --profile nextjs up -d' でチェック可能）"
   fi
 
   # ── workshop-state.json 更新 ──────────────────────────────────
   if command -v jq &>/dev/null && [ -f "workshop-state.json" ]; then
-    ./scripts/update-state.sh .steps.step4.consistency.app_identical \
-      "$([ -z "${app_diff:-}" ] && echo true || echo false)" 2>/dev/null || true
-    ./scripts/update-state.sh .steps.step4.consistency.tests_identical \
-      "$([ -z "${tests_diff:-}" ] && echo true || echo false)" 2>/dev/null || true
-    ./scripts/update-state.sh .steps.step4.consistency.agent_files_present \
-      "$($agent_ok && echo true || echo false)" 2>/dev/null || true
+    ./scripts/update-state.sh .steps.step4.consistency.endpoint_mapping_complete \
+      "$($impl_ok && echo true || echo false)" 2>/dev/null || true
+    ./scripts/update-state.sh .steps.step4.consistency.healthz_reachable \
+      "$($healthz_reachable && echo true || echo false)" 2>/dev/null || true
   fi
 }
 

@@ -49,15 +49,25 @@
 
 - [ ] **Claude Code の動作確認**
   ```bash
-  # Vertex AI 接続の確認
+  # Claude Code が起動し、モデルが選択可能か確認
   claude --version
-  claude /model  # Claude が選択可能か確認
+  claude /model  # Claude Opus 4.7 などが選択可能か確認
   ```
 
 - [ ] **Docker / docker-compose の準備**
   ```bash
   docker --version         # Docker 24+ 推奨
   docker compose version   # Compose V2
+  ```
+
+- [ ] **Node.js / pnpm の準備**（Step 4: Next.js フロントエンド用）
+  ```bash
+  node --version           # Node.js 20+ 推奨
+  pnpm --version           # pnpm 9+ 推奨
+  # 未インストールの場合:
+  # macOS: brew install node && npm install -g pnpm
+  # Ubuntu: nvm install 20 && npm install -g pnpm
+  # コンテナで完結する場合は不要だが、ローカル開発（pnpm dev）には必要
   ```
 
 - [ ] **jq コマンドの準備**（品質インフラで使用）
@@ -71,9 +81,9 @@
 ### Google 側（ワークショップ前日まで）
 
 - [ ] お客様のソースコードを事前に受領し、構造を把握
-- [ ] Vertex AI プロジェクトのセットアップ確認
+- [ ] Claude Code の認証セットアップ確認（Vertex AI ADC または Anthropic API キー）
 - [ ] リポジトリの最新化
-- [ ] docker-compose の動作確認（PostgreSQL 起動テスト）
+- [ ] docker-compose の動作確認（PostgreSQL 起動テスト + Step 3 / Step 4 profile のビルド試行）
 - [ ] `.claude/` ディレクトリの存在確認（commands / agents / skills が揃っているか）
 
 ---

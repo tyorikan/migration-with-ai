@@ -4,9 +4,14 @@
 > builder の思考履歴を引き継がない、まっさらなコンテキストでレビューすることが品質の鍵です。
 
 ## 対象 Step
-`$ARGUMENTS` (例: 1, 2, 3, all)
+`$ARGUMENTS` (例: 1, 2, 3, 4-A, 4-B, 4, all)
 
 引数が空の場合は `all`（全 Step の成果物をレビュー）をデフォルトとします。
+
+Step 4 は二段構成（設計フェーズと実装フェーズ）のため、引数で指定する:
+- `4-A` … 設計レビュー（`/design-frontend` 完了後）
+- `4-B` … 実装レビュー（`/implement-frontend` 完了後）
+- `4`   … `4-A` と `4-B` を順に実施
 
 ---
 
@@ -56,13 +61,26 @@ cat workshop-state.json
 4. Apex テストの assert がすべて pytest に移植されているか
 5. ruff / mypy でエラーがないか（`check-progress.sh 3` を実行）
 
-#### Step 4 をレビューする場合
-1. `04-frontend-a2ui/output/agent/agent.py` — ADK Agent + A2UI 統合が正しいか
-2. `04-frontend-a2ui/output/main.py` — `get_fast_api_app()` + `include_router()` で既存 Router がマージされているか
-3. Agent の Tool 定義 — Step 3 の REST API を正しく呼び出しているか
-4. `A2uiSchemaManager` — BasicCatalog + v0.8 スキーマが正しく設定されているか
-5. Vertex AI 認証 — `GOOGLE_API_KEY` を使用していないか（ADC のみ）
-6. Lit Renderer — `renderer/package.json` と `renderer/src/app.ts` が存在するか
+#### Step 4-A（設計レビュー）をレビューする場合
+
+`04-frontend-nextjs/output/design/` 配下の 11 ファイル（overview / design-system / api-client / data-model / screens × 7）を全部読み、`quality-rubric` の Step 4-A セクションに従って評価:
+
+1. **網羅性**: P0 画面 7 枚分（dashboard / list / detail / create / edit / status-transition / delete-confirm）の screens/*.md が揃っているか
+2. **業務ルール表現**: `system_overview.md` のステータス遷移マトリクス・Approved 編集不可・Draft 削除のみ・Submitted 承認はマネージャーのみ・重複防止 が、いずれかの screens/*.md で UI 制御として明文化されているか
+3. **API 整合**: api-client.md の BFF Route Handler 一覧が Backend (`03-code-modernization/output/app/router/`) のすべての P0 エンドポイントと 1:1 対応しているか
+4. **データモデル整合**: data-model.md の Zod スキーマ案が Backend Pydantic スキーマ (`03-code-modernization/output/app/model/schemas.py`) のフィールド名・型・必須・enum と一致するか
+5. **ワイヤー / コンポーネントツリー / API のトリプル整合**: 各 screens/*.md でワイヤー上のボタンやリストが、コンポーネントツリーとも、API 呼び出しとも齟齬なく対応しているか
+
+#### Step 4-B（実装レビュー）をレビューする場合
+
+`04-frontend-nextjs/output/` 配下のソースコードを `quality-rubric` の Step 4-B セクションに従って評価:
+
+1. **設計と実装の一致**: 各 screens/*.md のコンポーネントツリーと、対応するページ実装 (`app/visits/.../page.tsx`) のコンポーネント階層が一致しているか
+2. **業務ルールの UI 制御**: Approved 編集ボタン非表示、Draft 削除のみ、マネージャーのみ承認ボタン、が実装されているか（grep で確認）
+3. **テスト充足**: `pnpm test`（Vitest）と `pnpm e2e`（Playwright）の結果、カバレッジ、Route Handler / schemas のテスト網羅性
+4. **静的解析**: `pnpm typecheck` と `pnpm lint` でエラー 0
+5. **BFF セキュリティ**: Backend エラーを生で漏らさない、ロール権限を `requireManager()` で BFF 層で確認しているか
+6. **Docker ビルド**: `docker compose --profile nextjs up -d --build` で `http://localhost:3000` が 200 を返すか
 
 ### 3. 機械的検証の実行
 
@@ -82,15 +100,31 @@ cat workshop-state.json
 - Step 1: `01-reverse-engineering/output/review_report.md`
 - Step 2: `02-schema-migration/output/review_report.md`
 - Step 3: `03-code-modernization/output/review_report.md`
-- Step 4: `04-frontend-a2ui/output/review_report.md`
+- Step 4-A（設計）: `04-frontend-nextjs/output/DESIGN_REPORT.md`
+- Step 4-B（実装）: `04-frontend-nextjs/output/review_report.md`
 
 ### 5. workshop-state.json の更新
 
 ```bash
-# スコアを更新（例: Step 1 の平均スコアが 4.2 の場合）
+# Step 1〜3: 通常パターン
 ./scripts/update-state.sh .steps.step1.review.score 4.2
 ./scripts/update-state.sh .steps.step1.review.gate_passed true
 ./scripts/update-state.sh .steps.step1.review.reviewed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Step 4-A（設計フェーズの review は phases.design.review に書く）
+./scripts/update-state.sh .steps.step4.phases.design.review.score 4.0
+./scripts/update-state.sh .steps.step4.phases.design.review.gate_passed true
+./scripts/update-state.sh .steps.step4.phases.design.review.reviewed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+./scripts/update-state.sh .steps.step4.phases.design.review.feedback_file "04-frontend-nextjs/output/DESIGN_REPORT.md"
+
+# Step 4-B（実装フェーズの review は phases.implement.review と step4.review の両方を更新）
+./scripts/update-state.sh .steps.step4.phases.implement.review.score 4.0
+./scripts/update-state.sh .steps.step4.phases.implement.review.gate_passed true
+./scripts/update-state.sh .steps.step4.phases.implement.review.reviewed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+./scripts/update-state.sh .steps.step4.phases.implement.review.feedback_file "04-frontend-nextjs/output/review_report.md"
+./scripts/update-state.sh .steps.step4.review.score 4.0          # ステップ全体ゲート
+./scripts/update-state.sh .steps.step4.review.gate_passed true
+./scripts/update-state.sh .steps.step4.review.reviewed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # 不合格の場合
 ./scripts/update-state.sh .steps.step1.review.gate_passed false
