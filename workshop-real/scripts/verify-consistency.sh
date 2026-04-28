@@ -348,19 +348,24 @@ END $$;'
 }
 
 # -------------------------------------------------------
-# Step 3 → Step 4: Backend コピー + A2UI Agent 存在チェック
+# Step 3 → Step 4: Backend 同一性 + A2UI 拡張チェック
 # -------------------------------------------------------
 # 検証ポイント:
-#   1. Step 3 の app/ が Step 4 にコピーされているか
-#   2. A2UI Agent ファイル (agent/agent.py, agent/tools.py) が存在するか
-#   3. main.py が get_fast_api_app() を使っているか
-#   4. requirements.txt に google-adk が追加されているか
+#   1. Step 3 の app/ が Step 4 に同一内容でコピーされているか (diff -rq)
+#   2. Step 3 の tests/ が Step 4 に同一内容でコピーされているか
+#   3. A2UI Agent ファイル (agent/*, main.py) が存在するか
+#   4. main.py が get_fast_api_app() を使っているか
+#   5. requirements.txt に google-adk, a2ui-agent-sdk が追加されているか
+#   6. Renderer ディレクトリが存在するか
+#   7. tools.py が HTTP クライアントではなく UseCase 直接呼び出しか
+# 除外: __pycache__, *.pyc, .pytest_cache
 # -------------------------------------------------------
 check_step3_to_step4() {
-  echo -e "\n${BLUE}━━━ Step 3 → Step 4: Backend コピー + A2UI Agent ━━━${NC}"
+  echo -e "\n${BLUE}━━━ Step 3 → Step 4: Backend 同一性 + A2UI Agent ━━━${NC}"
 
   local step3_dir="03-code-modernization/output"
   local step4_dir="04-frontend-a2ui/output"
+  local diff_exclude="--exclude=__pycache__ --exclude=*.pyc --exclude=.pytest_cache"
 
   if [ ! -d "$step3_dir/app" ]; then
     echo -e "  ${YELLOW}⚠️${NC}  $step3_dir/app が存在しません（Step 3 未完了）"
@@ -371,23 +376,19 @@ check_step3_to_step4() {
     return
   fi
 
-  # ── ① Step 3 の app/ が Step 4 にコピーされているか ──────────────
-  echo "  [Step 3 Backend コピー確認]"
+  # ── ① app/ のバイトレベル同一性チェック ──────────────────────────
+  echo "  [Step 3 app/ → Step 4 app/ 同一性]"
   if [ -d "$step4_dir/app" ]; then
-    # Step 3 の主要ファイルが Step 4 にも存在するか
-    local step3_files step4_files missing_files
-    step3_files=$(find "$step3_dir/app" -name "*.py" -type f | sed "s|$step3_dir/||" | sort)
-    step4_files=$(find "$step4_dir/app" -name "*.py" -type f | sed "s|$step4_dir/||" | sort)
-    missing_files=$(comm -23 <(echo "$step3_files") <(echo "$step4_files") 2>/dev/null || true)
-
-    if [ -z "$missing_files" ]; then
+    local app_diff
+    app_diff=$(diff -rq $diff_exclude "$step3_dir/app" "$step4_dir/app" 2>/dev/null || true)
+    if [ -z "$app_diff" ]; then
       local file_count
-      file_count=$(echo "$step3_files" | grep -c . 2>/dev/null || echo 0)
-      echo -e "  ${GREEN}✅${NC} Step 3 の app/ が Step 4 にコピー済み (${file_count} ファイル)"
+      file_count=$(find "$step3_dir/app" -name "*.py" -not -path "*__pycache__*" -type f | wc -l | tr -d ' ')
+      echo -e "  ${GREEN}✅${NC} app/ が完全一致 (${file_count} ファイル)"
       ((TOTAL_OK++)) || true
     else
-      echo -e "  ${RED}❌${NC} 以下の Step 3 ファイルが Step 4 に不足:"
-      echo "$missing_files" | while read -r m; do [ -n "$m" ] && echo "     - $m"; done
+      echo -e "  ${RED}❌${NC} app/ に差分あり（Step 4 で破壊的変更の可能性）:"
+      echo "$app_diff" | head -10 | while read -r m; do echo "     $m"; done
       ((TOTAL_FAIL++)) || true
     fi
   else
@@ -395,22 +396,63 @@ check_step3_to_step4() {
     ((TOTAL_FAIL++)) || true
   fi
 
-  # ── ② A2UI Agent ファイル存在チェック ──────────────────────────
-  echo "  [A2UI Agent ファイル確認]"
-  local required_files=(
-    "$step4_dir/agent/agent.py"
-    "$step4_dir/agent/tools.py"
-    "$step4_dir/main.py"
-  )
-  local agent_ok=true
-  for f in "${required_files[@]}"; do
-    if [ -f "$f" ]; then
-      echo -e "    ${GREEN}✓${NC} $f"
+  # ── ② tests/ のバイトレベル同一性チェック ────────────────────────
+  echo "  [Step 3 tests/ → Step 4 tests/ 同一性]"
+  if [ -d "$step3_dir/tests" ]; then
+    if [ -d "$step4_dir/tests" ]; then
+      local tests_diff
+      tests_diff=$(diff -rq $diff_exclude "$step3_dir/tests" "$step4_dir/tests" 2>/dev/null || true)
+      if [ -z "$tests_diff" ]; then
+        local test_count
+        test_count=$(find "$step3_dir/tests" -name "*.py" -not -path "*__pycache__*" -type f | wc -l | tr -d ' ')
+        echo -e "  ${GREEN}✅${NC} tests/ が完全一致 (${test_count} ファイル)"
+        ((TOTAL_OK++)) || true
+      else
+        echo -e "  ${RED}❌${NC} tests/ に差分あり:"
+        echo "$tests_diff" | head -10 | while read -r m; do echo "     $m"; done
+        ((TOTAL_FAIL++)) || true
+      fi
     else
-      echo -e "    ${RED}✗${NC} $f が存在しません"
-      agent_ok=false
+      echo -e "  ${RED}❌${NC} $step4_dir/tests が存在しません"
+      ((TOTAL_FAIL++)) || true
     fi
-  done
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  $step3_dir/tests が存在しません（Step 3 テスト未生成）"
+  fi
+
+  # ── ③ A2UI Agent ファイル存在チェック ──────────────────────────
+  # Agent ディレクトリ名は実装依存（agent/ または agent/<agent_name>/）のため
+  # find で柔軟に検出する
+  echo "  [A2UI Agent ファイル確認]"
+  local agent_ok=true
+
+  # main.py（エントリポイント）
+  if [ -f "$step4_dir/main.py" ]; then
+    echo -e "    ${GREEN}✓${NC} main.py"
+  else
+    echo -e "    ${RED}✗${NC} main.py が存在しません"
+    agent_ok=false
+  fi
+
+  # agent.py（Agent 定義、サブディレクトリ内の場合あり）
+  local agent_py
+  agent_py=$(find "$step4_dir" -path "*/agent*" -name "agent.py" -type f 2>/dev/null | head -1)
+  if [ -n "$agent_py" ]; then
+    echo -e "    ${GREEN}✓${NC} ${agent_py#$step4_dir/}"
+  else
+    echo -e "    ${RED}✗${NC} agent.py が見つかりません（agent/ 配下に必要）"
+    agent_ok=false
+  fi
+
+  # tools.py（Tool 定義）
+  local tools_py
+  tools_py=$(find "$step4_dir" -path "*/agent*" -name "tools.py" -type f 2>/dev/null | head -1)
+  if [ -n "$tools_py" ]; then
+    echo -e "    ${GREEN}✓${NC} ${tools_py#$step4_dir/}"
+  else
+    echo -e "    ${RED}✗${NC} tools.py が見つかりません（agent/ 配下に必要）"
+    agent_ok=false
+  fi
 
   if $agent_ok; then
     echo -e "  ${GREEN}✅${NC} A2UI Agent ファイル完備"
@@ -420,7 +462,7 @@ check_step3_to_step4() {
     ((TOTAL_FAIL++)) || true
   fi
 
-  # ── ③ main.py が get_fast_api_app() を使っているか ─────────────
+  # ── ④ main.py が get_fast_api_app() を使っているか ─────────────
   echo "  [main.py パターン確認]"
   if [ -f "$step4_dir/main.py" ]; then
     if grep -q "get_fast_api_app" "$step4_dir/main.py"; then
@@ -432,21 +474,30 @@ check_step3_to_step4() {
     fi
   fi
 
-  # ── ④ requirements.txt に google-adk が含まれるか ──────────────
+  # ── ⑤ requirements.txt に A2UI 依存が含まれるか ────────────────
   echo "  [依存パッケージ確認]"
   if [ -f "$step4_dir/requirements.txt" ]; then
-    if grep -qi "google-adk" "$step4_dir/requirements.txt"; then
-      echo -e "  ${GREEN}✅${NC} requirements.txt に google-adk を確認"
+    local deps_ok=true
+    for dep in "google-adk" "a2ui-agent-sdk"; do
+      if grep -qi "$dep" "$step4_dir/requirements.txt"; then
+        echo -e "    ${GREEN}✓${NC} $dep"
+      else
+        echo -e "    ${RED}✗${NC} $dep が requirements.txt にありません"
+        deps_ok=false
+      fi
+    done
+    if $deps_ok; then
+      echo -e "  ${GREEN}✅${NC} A2UI 依存パッケージ完備"
       ((TOTAL_OK++)) || true
     else
-      echo -e "  ${RED}❌${NC} requirements.txt に google-adk がありません"
+      echo -e "  ${RED}❌${NC} A2UI 依存パッケージ不足"
       ((TOTAL_FAIL++)) || true
     fi
   else
     echo -e "  ${YELLOW}⚠️${NC}  $step4_dir/requirements.txt が存在しません"
   fi
 
-  # ── ⑤ Renderer ディレクトリ確認 ────────────────────────────────
+  # ── ⑥ Renderer ディレクトリ確認 ────────────────────────────────
   echo "  [Lit Renderer 確認]"
   if [ -d "$step4_dir/renderer" ] && [ -f "$step4_dir/renderer/package.json" ]; then
     echo -e "  ${GREEN}✅${NC} Lit Renderer ディレクトリ存在"
@@ -455,18 +506,28 @@ check_step3_to_step4() {
     echo -e "  ${YELLOW}⚠️${NC}  renderer/ が未セットアップ（Phase 2 未完了の可能性）"
   fi
 
-  # ── ⑥ Tool が REST ではなく UseCase 直接呼び出しか ─────────────
+  # ── ⑦ Tool が REST ではなく UseCase 直接呼び出しか ─────────────
   echo "  [Tool 実装パターン確認]"
-  if [ -f "$step4_dir/agent/tools.py" ]; then
-    if grep -q "httpx\|requests\.get\|requests\.post" "$step4_dir/agent/tools.py"; then
+  if [ -n "$tools_py" ]; then
+    if grep -q "httpx\|requests\.get\|requests\.post" "$tools_py"; then
       echo -e "  ${RED}❌${NC} tools.py が HTTP クライアントを使用（UseCase 直接呼び出しにすべき）"
       ((TOTAL_FAIL++)) || true
-    elif grep -q "usecase\|repository\|UseCase\|Repository" "$step4_dir/agent/tools.py"; then
+    elif grep -q "usecase\|repository\|UseCase\|Repository" "$tools_py"; then
       echo -e "  ${GREEN}✅${NC} tools.py が UseCase/Repository を直接呼び出し"
       ((TOTAL_OK++)) || true
     else
       echo -e "  ${YELLOW}⚠️${NC}  tools.py の実装パターンを判別できません"
     fi
+  fi
+
+  # ── workshop-state.json 更新 ──────────────────────────────────
+  if command -v jq &>/dev/null && [ -f "workshop-state.json" ]; then
+    ./scripts/update-state.sh .steps.step4.consistency.app_identical \
+      "$([ -z "${app_diff:-}" ] && echo true || echo false)" 2>/dev/null || true
+    ./scripts/update-state.sh .steps.step4.consistency.tests_identical \
+      "$([ -z "${tests_diff:-}" ] && echo true || echo false)" 2>/dev/null || true
+    ./scripts/update-state.sh .steps.step4.consistency.agent_files_present \
+      "$($agent_ok && echo true || echo false)" 2>/dev/null || true
   fi
 }
 
