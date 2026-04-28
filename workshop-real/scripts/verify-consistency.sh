@@ -7,6 +7,7 @@
 #   例: ./scripts/verify-consistency.sh       → 全チェック
 #       ./scripts/verify-consistency.sh 1-2   → Step 1→2 のみ
 #       ./scripts/verify-consistency.sh 2-3   → Step 2→3 のみ
+#       ./scripts/verify-consistency.sh 3-4   → Step 3→4 のみ
 # =============================================================
 
 set -euo pipefail
@@ -347,6 +348,129 @@ END $$;'
 }
 
 # -------------------------------------------------------
+# Step 3 → Step 4: Backend コピー + A2UI Agent 存在チェック
+# -------------------------------------------------------
+# 検証ポイント:
+#   1. Step 3 の app/ が Step 4 にコピーされているか
+#   2. A2UI Agent ファイル (agent/agent.py, agent/tools.py) が存在するか
+#   3. main.py が get_fast_api_app() を使っているか
+#   4. requirements.txt に google-adk が追加されているか
+# -------------------------------------------------------
+check_step3_to_step4() {
+  echo -e "\n${BLUE}━━━ Step 3 → Step 4: Backend コピー + A2UI Agent ━━━${NC}"
+
+  local step3_dir="03-code-modernization/output"
+  local step4_dir="04-frontend-a2ui/output"
+
+  if [ ! -d "$step3_dir/app" ]; then
+    echo -e "  ${YELLOW}⚠️${NC}  $step3_dir/app が存在しません（Step 3 未完了）"
+    return
+  fi
+  if [ ! -d "$step4_dir" ]; then
+    echo -e "  ${YELLOW}⚠️${NC}  $step4_dir が存在しません（Step 4 未完了）"
+    return
+  fi
+
+  # ── ① Step 3 の app/ が Step 4 にコピーされているか ──────────────
+  echo "  [Step 3 Backend コピー確認]"
+  if [ -d "$step4_dir/app" ]; then
+    # Step 3 の主要ファイルが Step 4 にも存在するか
+    local step3_files step4_files missing_files
+    step3_files=$(find "$step3_dir/app" -name "*.py" -type f | sed "s|$step3_dir/||" | sort)
+    step4_files=$(find "$step4_dir/app" -name "*.py" -type f | sed "s|$step4_dir/||" | sort)
+    missing_files=$(comm -23 <(echo "$step3_files") <(echo "$step4_files") 2>/dev/null || true)
+
+    if [ -z "$missing_files" ]; then
+      local file_count
+      file_count=$(echo "$step3_files" | grep -c . 2>/dev/null || echo 0)
+      echo -e "  ${GREEN}✅${NC} Step 3 の app/ が Step 4 にコピー済み (${file_count} ファイル)"
+      ((TOTAL_OK++)) || true
+    else
+      echo -e "  ${RED}❌${NC} 以下の Step 3 ファイルが Step 4 に不足:"
+      echo "$missing_files" | while read -r m; do [ -n "$m" ] && echo "     - $m"; done
+      ((TOTAL_FAIL++)) || true
+    fi
+  else
+    echo -e "  ${RED}❌${NC} $step4_dir/app が存在しません（Backend 未コピー）"
+    ((TOTAL_FAIL++)) || true
+  fi
+
+  # ── ② A2UI Agent ファイル存在チェック ──────────────────────────
+  echo "  [A2UI Agent ファイル確認]"
+  local required_files=(
+    "$step4_dir/agent/agent.py"
+    "$step4_dir/agent/tools.py"
+    "$step4_dir/main.py"
+  )
+  local agent_ok=true
+  for f in "${required_files[@]}"; do
+    if [ -f "$f" ]; then
+      echo -e "    ${GREEN}✓${NC} $f"
+    else
+      echo -e "    ${RED}✗${NC} $f が存在しません"
+      agent_ok=false
+    fi
+  done
+
+  if $agent_ok; then
+    echo -e "  ${GREEN}✅${NC} A2UI Agent ファイル完備"
+    ((TOTAL_OK++)) || true
+  else
+    echo -e "  ${RED}❌${NC} A2UI Agent ファイル不足"
+    ((TOTAL_FAIL++)) || true
+  fi
+
+  # ── ③ main.py が get_fast_api_app() を使っているか ─────────────
+  echo "  [main.py パターン確認]"
+  if [ -f "$step4_dir/main.py" ]; then
+    if grep -q "get_fast_api_app" "$step4_dir/main.py"; then
+      echo -e "  ${GREEN}✅${NC} main.py に get_fast_api_app() 使用を確認"
+      ((TOTAL_OK++)) || true
+    else
+      echo -e "  ${RED}❌${NC} main.py に get_fast_api_app() がありません"
+      ((TOTAL_FAIL++)) || true
+    fi
+  fi
+
+  # ── ④ requirements.txt に google-adk が含まれるか ──────────────
+  echo "  [依存パッケージ確認]"
+  if [ -f "$step4_dir/requirements.txt" ]; then
+    if grep -qi "google-adk" "$step4_dir/requirements.txt"; then
+      echo -e "  ${GREEN}✅${NC} requirements.txt に google-adk を確認"
+      ((TOTAL_OK++)) || true
+    else
+      echo -e "  ${RED}❌${NC} requirements.txt に google-adk がありません"
+      ((TOTAL_FAIL++)) || true
+    fi
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  $step4_dir/requirements.txt が存在しません"
+  fi
+
+  # ── ⑤ Renderer ディレクトリ確認 ────────────────────────────────
+  echo "  [Lit Renderer 確認]"
+  if [ -d "$step4_dir/renderer" ] && [ -f "$step4_dir/renderer/package.json" ]; then
+    echo -e "  ${GREEN}✅${NC} Lit Renderer ディレクトリ存在"
+    ((TOTAL_OK++)) || true
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  renderer/ が未セットアップ（Phase 2 未完了の可能性）"
+  fi
+
+  # ── ⑥ Tool が REST ではなく UseCase 直接呼び出しか ─────────────
+  echo "  [Tool 実装パターン確認]"
+  if [ -f "$step4_dir/agent/tools.py" ]; then
+    if grep -q "httpx\|requests\.get\|requests\.post" "$step4_dir/agent/tools.py"; then
+      echo -e "  ${RED}❌${NC} tools.py が HTTP クライアントを使用（UseCase 直接呼び出しにすべき）"
+      ((TOTAL_FAIL++)) || true
+    elif grep -q "usecase\|repository\|UseCase\|Repository" "$step4_dir/agent/tools.py"; then
+      echo -e "  ${GREEN}✅${NC} tools.py が UseCase/Repository を直接呼び出し"
+      ((TOTAL_OK++)) || true
+    else
+      echo -e "  ${YELLOW}⚠️${NC}  tools.py の実装パターンを判別できません"
+    fi
+  fi
+}
+
+# -------------------------------------------------------
 # メイン
 # -------------------------------------------------------
 echo -e "${BLUE}==========================================${NC}"
@@ -361,15 +485,17 @@ case "$CHECK" in
   1-2) check_step1_to_step2 ;;
   2-3) check_step2_to_step3 ;;
   3)   check_step3_tests ;;
+  3-4) check_step3_to_step4 ;;
   ddl) check_ddl_psql ;;
   all)
     check_step1_to_step2
     check_step2_to_step3
     check_step3_tests
+    check_step3_to_step4
     check_ddl_psql
     ;;
   *)
-    echo "Usage: $0 [1-2|2-3|3|ddl|all]"
+    echo "Usage: $0 [1-2|2-3|3|3-4|ddl|all]"
     exit 1
     ;;
 esac
@@ -379,3 +505,4 @@ echo -e "  ${GREEN}${TOTAL_OK} passed${NC}, ${RED}${TOTAL_FAIL} failed${NC}"
 echo -e "${BLUE}==========================================${NC}"
 
 exit "$TOTAL_FAIL"
+
