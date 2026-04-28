@@ -61,8 +61,8 @@ description: 各 Step の成果物をスコアリングする評価基準。migr
 | **テスト品質** | テストなし or 全 FAIL | テストあるが50%未満 PASS | 全テスト PASS + **`pytest --cov` でカバレッジ 80%+ を機械的に確認** + 具象 Repo の DB 統合テスト 1 件以上 | Apex テストの全 assert が移植済み + Batch ジョブのテスト（`tests/test_jobs.py`）あり | パラメタライズ + エッジケース + エラーケース完備 + 冪等性検証あり |
 | **アーキテクチャ** | 3層分離なし（全部1ファイル） | 一部分離だが DI なし | router/usecase/repository 3層 + Depends() + **ABC + 具象 SQLAlchemy 実装の両方が存在 + `get_usecase` が wire 済み（`NotImplementedError` なし）** | 上記 + 型ヒント完備 + `dependencies.py` で集約 | 3層 + DI + エラーハンドリング + structlog + `app/jobs/` で Batch も同じ DI パターン |
 | **コード品質** | ruff/mypy で大量エラー | ruff PASS だが mypy エラー多数 | ruff + mypy エラーなし（**`requirements-dev.txt` に mypy/pytest-cov/bandit を収録し実行可能な状態**） | 上記 + Google docstring + 型ヒント全関数 | 上記 + bandit PASS（HIGH/MEDIUM 0、LOW のみ理由付き `# nosec`）+ 構造化エラーレスポンス |
-| **Apex変換正確性** | ビジネスロジックが未実装 | CRUD のみ、ロジックなし | 主要ビジネスロジック + **対象 SFDC に Apex Batch クラスがある場合は `app/jobs/` に Python 実装あり**（無い場合は不問） | Trigger → usecase 明示化 + ガバナ制限削除 + Batch の冪等性 (`ON CONFLICT DO UPDATE`) 担保 | 全ロジック移植 + Batch → Cloud Run Jobs パターン + Cloud Scheduler 連携を README に記載 |
-| **動作検証** | 起動しない | 起動するが API エラー | 全 API エンドポイントが正常レスポンス + **production 起動時に `get_usecase` が NotImplementedError を出さない（DI wire 完了）** | docker-compose でコンテナ間通信 OK | 上記 + データ投入→CRUD→検証の E2E パス + Batch を `python -m app.jobs.<name>` で実行確認 |
+| **Apex変換正確性** | ビジネスロジックが未実装 | CRUD のみ、ロジックなし | 主要ビジネスロジック + **対象 SFDC に Apex Batch クラスがある場合は `app/jobs/` に Python 実装あり**（無い場合は不問）+ **`@RestResource(urlMapping=…)` → `app.include_router(prefix=…)` の URL 整合が README/system_overview.md と一致** | Trigger → usecase 明示化 + ガバナ制限削除 + Batch の冪等性 (`ON CONFLICT DO UPDATE`) 担保 | 全ロジック移植 + Batch → Cloud Run Jobs パターン + Cloud Scheduler 連携を README に記載 |
+| **動作検証** | 起動しない | 起動するが API エラー | 全 API エンドポイントが正常レスポンス + **production 起動時に `get_usecase` が NotImplementedError を出さない（DI wire 完了）** + **`/openapi.json` の paths が README の curl 例と完全一致**（差分があれば即 ≤ 2） | docker-compose でコンテナ間通信 OK | 上記 + データ投入→CRUD→検証の E2E パス + Batch を `python -m app.jobs.<name>` で実行確認 |
 
 ### Step 3 レビュー時の必須機械的確認
 
@@ -95,9 +95,32 @@ grep -E '^(mypy|pytest-cov|bandit)' requirements-dev.txt 2>/dev/null \
 .venv/bin/mypy app/
 .venv/bin/pytest --cov=app --cov-fail-under=80
 .venv/bin/bandit -r app/ -ll
+
+# F. 公開 URL contract 整合（無ければ Apex 変換正確性 / 動作検証 ≤ 2）
+#    README.md / system_overview.md に書かれた URL と、実際の OpenAPI paths が一致するか
+PORT=18080
+.venv/bin/uvicorn app.main:app --port "$PORT" >/dev/null 2>&1 &
+UV=$!; sleep 2
+curl -fsS "http://127.0.0.1:$PORT/openapi.json" 2>/dev/null \
+  | jq -r '.paths | keys[]' \
+  | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/_openapi_paths.txt
+kill "$UV" 2>/dev/null
+
+# README + system_overview の API 表に登場する path を抽出
+{ grep -hoE '/api/v[0-9]+/[a-z][a-z0-9/_{}-]*' README.md 2>/dev/null
+  grep -hoE '`/api/v[0-9]+/[a-z][a-z0-9/_{}-]*`' \
+    ../../01-reverse-engineering/output/system_overview.md 2>/dev/null \
+    | tr -d '`'
+} | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/_doc_paths.txt
+
+# diff 結果が非空 = 不一致（過去事例: README は /api/v1/store-visits、実装は /store-visits）
+if [ -s /tmp/_doc_paths.txt ]; then
+  diff /tmp/_doc_paths.txt /tmp/_openapi_paths.txt \
+    || echo "🔴 README/system_overview と OpenAPI paths が不一致 (Apex 変換正確性 ≤ 2)"
+fi
 ```
 
-A〜E のいずれかが ❌ の場合、関連評価軸のスコアを 1 段階ずつ下げる。
+A〜F のいずれかが ❌ の場合、関連評価軸のスコアを 1 段階ずつ下げる。
 
 ---
 
@@ -111,7 +134,7 @@ A〜E のいずれかが ❌ の場合、関連評価軸のスコアを 1 段階
 |----|-----------|-----------|--------------|---------|---------|
 | **網羅性** | design/ が空 | overview のみ | overview + design-system + api-client + data-model + screens 7 枚すべて存在 | 上記 + 各 screens で固定 8 セクション全部記載 | 上記 + P1 画面（店舗一覧・月次サマリー）も設計済み |
 | **業務ルール表現** | ステータス遷移すら言及なし | 一部のみ | system_overview.md の主要ルール（ステータス遷移マトリクス・Approved 編集不可・Draft 削除のみ）が screens/*.md で UI 制御として明文化 | 上記 + 重複防止・メール通知・ロール別ボタン表示 も明文化 | 上記 + エラーケースの UX も全部記述（VISIT_NOT_FOUND / BUSINESS_ERROR / VALIDATION_ERROR） |
-| **API 整合性** | api-client.md なし | 一部のみ記載 | Backend (`03-code-modernization/output/app/router/`) のすべての P0 エンドポイントが BFF Route Handler と 1:1 対応表で記載 | 上記 + エラーコードマッピング表あり | 上記 + リクエスト/レスポンスのサンプル JSON あり |
+| **API 整合性** | api-client.md なし | 一部のみ記載 | Backend (`03-code-modernization/output/app/router/`) のすべての P0 エンドポイントが BFF Route Handler と 1:1 対応表で記載 + **設計書中の `BACKEND_URL` / Backend path が実 `/openapi.json` の paths と完全一致**（Backend 起動可能なら起動して照合） | 上記 + エラーコードマッピング表あり | 上記 + リクエスト/レスポンスのサンプル JSON あり |
 | **データモデル整合** | data-model.md なし | フィールド名が Backend と不一致 | data-model.md の Zod 案が Backend Pydantic と フィールド名・型・必須・enum すべて一致 | 上記 + camelCase ↔ snake_case の境界が明文化 | 上記 + `openapi-typescript` などの自動生成方針も記載 |
 | **ワイヤー品質** | ワイヤーなし | テキスト羅列のみ | ASCII または Mermaid のワイヤーがあり、コンポーネントツリー・API と齟齬なく対応 | 上記 + 状態（loading/empty/error）ごとのワイヤー差分あり | 上記 + a11y（キーボード操作・ARIA）の指針あり |
 
@@ -141,6 +164,23 @@ done
 # D. Backend エンドポイント全カバレッジ（grep で BFF 一覧の対応表をチェック）
 grep -E "^\| /api/" "$DESIGN_DIR/api-client.md" | wc -l
 # Backend のエンドポイント数（5: GET /store-visits, GET /:id, POST, PATCH /:id, DELETE /:id）と比較
+
+# D-2. 設計書中の BACKEND_URL / Backend path が実 OpenAPI と一致するか
+#      (Backend が起動可能なら必ず実行する。過去の事故: 設計が /api/v1 を前提にしていたが
+#       Backend 実装は prefix なしで Step 4 構築時に発覚)
+if curl -fsS http://localhost:8080/openapi.json >/tmp/_oai.json 2>/dev/null; then
+  jq -r '.paths | keys[]' /tmp/_oai.json | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/_oai_paths.txt
+  grep -hoE '/api/v[0-9]+/[a-z][a-z0-9/_{}-]*|/store-visits[a-z0-9/_{}-]*' \
+    "$DESIGN_DIR/api-client.md" "$DESIGN_DIR"/screens/*.md 2>/dev/null \
+    | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/_design_paths.txt
+  if [ -s /tmp/_design_paths.txt ]; then
+    # 設計に出てくる Backend path が OpenAPI に存在しなければ FAIL
+    while read -r p; do
+      grep -qE "(^|/)${p#/}\$" /tmp/_oai_paths.txt \
+        || echo "🔴 設計書の Backend path '$p' が実 OpenAPI に存在しない"
+    done < /tmp/_design_paths.txt
+  fi
+fi
 
 # E. Mermaid のレンダリング（mermaid-cli が使える場合）
 command -v mmdc >/dev/null 2>&1 && grep -l '```mermaid' "$DESIGN_DIR"/*.md "$DESIGN_DIR"/screens/*.md \

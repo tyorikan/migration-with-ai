@@ -45,10 +45,22 @@ app/
 
 ## 変換手順
 
+### Phase 0: API 契約の確定（**必須・最優先・テスト 1 行も書く前**）
+
+**過去の事故**: README で `/api/v1/store-visits` を仕様化していたのに、Backend 実装は `/store-visits` (prefix なし) で生成され、テストも実装に追従して書かれてしまい pytest 全 PASS で見逃された。
+
+1. 以下の **3 ソースから「公開 URL の真実」を grep で抽出** し、矛盾があれば実装前に確定:
+   - `01-reverse-engineering/output/system_overview.md` の API 仕様表
+   - `01-reverse-engineering/output/wiki/classes/*.md` の「推奨マッピング」欄
+   - `03-code-modernization/README.md` の curl 例 / Apex 機能等価性チェックリスト
+2. `tests/contract.py` を成果物として作成（`tdd-modernize` SKILL §Step 0 のテンプレート使用）
+3. FastAPI prefix 戦略を決定 (`include_router(prefix=…)` / Router 側 / `root_path`) — `sfdc-to-python` SKILL §0 表参照
+4. `/healthz` `/readyz` `/metrics` は **prefix なしルート** に置く
+
 ### Phase 1: テストファースト（RED）
 1. Apex テストクラスを読み込む
 2. `System.assertEquals` / `System.assert` を抽出
-3. pytest テストに変換
+3. pytest テストに変換 — **URL は `tests/contract.py` から import すること** (直書き禁止)
 4. テスト実行 → 全件 FAIL を確認
 
 ### Phase 2: モデル定義（GREEN の準備）
@@ -67,9 +79,11 @@ app/
 4. ビジネスロジックのテスト → GREEN
 
 ### Phase 5: Router 層
-1. FastAPI Router を定義
-2. Pydantic スキーマでリクエスト/レスポンスを型付け
-3. API テスト → GREEN
+1. FastAPI Router を定義（`APIRouter(prefix="/store-visits")` などリソース prefix のみ）
+2. **`app/main.py` の `app.include_router(...)` で API バージョン prefix を集中管理**（推奨パターン: `app.include_router(router, prefix="/api/v1")`）
+3. Pydantic スキーマでリクエスト/レスポンスを型付け
+4. API テスト → GREEN
+5. **契約適合チェック**: `curl /openapi.json | jq -r '.paths | keys[]'` の出力が Phase 0 で確定した `tests/contract.py` の path と完全一致することを確認 (`tdd-modernize` §Step 0-5)
 
 ### Phase 6: リファクタリング（REFACTOR）
 1. コード品質を向上
@@ -119,6 +133,8 @@ throw new AuraHandled...      → raise HTTPException(status_code=400, ...)
 
 ## 品質基準
 
+- [ ] **`tests/contract.py` が存在し、テストはそこから URL を取得**（直書き禁止）
+- [ ] **`/openapi.json` の paths が README.md / system_overview.md の API 表と完全一致**（`tdd-modernize` §Step 0-5 の差分チェック PASS）
 - [ ] Apex テストの全 assert が pytest に移植されている
 - [ ] テストカバレッジ 80% 以上
 - [ ] ruff チェックでエラーなし

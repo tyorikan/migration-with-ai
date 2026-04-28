@@ -124,7 +124,7 @@ docker compose --profile nextjs --profile step3 down -v
 
 環境変数:
 - `DB_HOST=db` `DB_PORT=5432` `DB_USER=app_user` `DB_PASSWORD=password` `DB_NAME=migration_db`（Backend）
-- `BACKEND_URL=http://app:8080/api/v1`（Next.js BFF が叩く Backend のベース URL）
+- `BACKEND_URL=http://app:8080/api/v1`（Next.js BFF が叩く Backend のベース URL — Step 3 FastAPI は `/api/v1/store-visits` を公開）
 
 ---
 

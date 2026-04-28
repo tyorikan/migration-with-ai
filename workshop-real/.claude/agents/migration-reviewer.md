@@ -50,6 +50,9 @@ tools: ["Read", "Grep", "Glob", "Bash"]
 - [ ] 全 API エンドポイントが応答を返す
 - [ ] Apex テストの assert が全件 pytest に移植されている
 - [ ] 3層アーキテクチャが守られている
+- [ ] **`tests/contract.py` (または同等の URL 集約) が存在し、テストが直書きしていない**
+- [ ] **`/openapi.json` paths と README.md / system_overview.md の API 表が完全一致**（差分ゼロ）— 過去事故: `/api/v1` prefix 抜けが Step 4 まで発覚しなかった
+- [ ] **`docker compose --profile step3 up -d app` 起動後、README の curl 例 (例: `curl http://localhost:8080/api/v1/store-visits`) がすべて 200/204 を返す**
 
 ### 最終チェック
 - [ ] Step 間の成果物が正しく連携している
@@ -71,6 +74,16 @@ cd 03-code-modernization/output && mypy app/
 
 # セキュリティスキャン
 cd 03-code-modernization/output && bandit -r app/
+
+# URL 契約適合 (Step 3 レビュー必須)
+docker compose --profile step3 up -d app && sleep 5
+curl -fsS http://localhost:8080/openapi.json \
+  | jq -r '.paths | keys[]' | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/oai.txt
+{ grep -hoE '/api/v[0-9]+/[a-z][a-z0-9/_{}-]*' \
+    03-code-modernization/README.md \
+    01-reverse-engineering/output/system_overview.md
+} | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/spec.txt
+diff /tmp/spec.txt /tmp/oai.txt && echo "✅ URL 契約適合" || echo "🔴 URL 不整合 (CRITICAL)"
 ```
 
 ## レビュー出力フォーマット

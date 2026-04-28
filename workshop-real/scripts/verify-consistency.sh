@@ -8,6 +8,7 @@
 #       ./scripts/verify-consistency.sh 1-2   → Step 1→2 のみ
 #       ./scripts/verify-consistency.sh 2-3   → Step 2→3 のみ
 #       ./scripts/verify-consistency.sh 3-4   → Step 3→4 のみ
+#       ./scripts/verify-consistency.sh api   → API URL 契約整合のみ (Step 1↔3, Step 3↔4)
 # =============================================================
 
 set -euo pipefail
@@ -489,6 +490,190 @@ check_step3_to_step4() {
 }
 
 # -------------------------------------------------------
+# Step 1 → Step 3: API URL 契約整合
+# -------------------------------------------------------
+# 過去事例 (2026-04-28): README.md は `/api/v1/store-visits` を仕様化していたが、
+# Backend 実装は `/store-visits` のまま (`include_router(prefix=...)` 抜け) で
+# Step 4 構築時まで誰も気付かなかった。再発防止のため:
+#   1. Step 1 の system_overview.md / Step 3 の README.md から「公開 URL」を抽出
+#   2. Backend の app/main.py + router の prefix を静的解析して実装側 path を求める
+#   3. Backend が起動中なら /openapi.json も照合
+#   4. 3 ソースの差分が 0 であることを確認
+# -------------------------------------------------------
+check_api_contract_step1_to_step3() {
+  echo -e "\n${BLUE}━━━ Step 1 → Step 3: API URL 契約整合 ━━━${NC}"
+
+  local sys_overview="01-reverse-engineering/output/system_overview.md"
+  local step3_readme="03-code-modernization/README.md"
+  local main_py="03-code-modernization/output/app/main.py"
+
+  if [ ! -f "$step3_readme" ] && [ ! -f "$sys_overview" ]; then
+    echo -e "  ${YELLOW}⚠️${NC}  Step 1 / Step 3 の仕様ドキュメントが見つかりません"
+    return
+  fi
+
+  local spec_paths_file="/tmp/_verify_spec_paths.txt"
+  local impl_paths_file="/tmp/_verify_impl_paths.txt"
+  local oai_paths_file="/tmp/_verify_oai_paths.txt"
+
+  # 1. 仕様ソースから path を抽出（バッククォート除去 + プレースホルダ正規化）
+  {
+    [ -f "$sys_overview" ] && grep -hoE '`/api/v[0-9]+/[a-z][a-z0-9/_{}-]*`|`/store-visits[a-z0-9/_{}-]*`' "$sys_overview" | tr -d '`'
+    [ -f "$step3_readme" ] && grep -hoE '/api/v[0-9]+/[a-z][a-z0-9/_{}-]*|/store-visits[a-z0-9/_{}-]*' "$step3_readme"
+  } 2>/dev/null \
+    | grep -vE '\.html$|\.json$|\.xml$' \
+    | sed -E 's|\{[^}]*\}|{ID}|g' \
+    | sort -u > "$spec_paths_file"
+
+  echo "  [仕様ソースの path 数] $(wc -l < "$spec_paths_file")"
+  if [ ! -s "$spec_paths_file" ]; then
+    echo -e "  ${YELLOW}⚠️${NC}  仕様ソースから API path を抽出できませんでした"
+    return
+  fi
+
+  # 2. 実装側 path（main.py の include_router prefix + router prefix を合成）
+  if [ -f "$main_py" ]; then
+    # include_router(..., prefix="/api/v1") から prefix を抽出
+    local include_prefix
+    include_prefix=$(grep -oE 'include_router\([^)]*prefix=["'"'"'][^"'"'"']+["'"'"']' "$main_py" \
+      | grep -oE 'prefix=["'"'"'][^"'"'"']+["'"'"']' | head -1 \
+      | sed -E 's/prefix=["'"'"']//; s/["'"'"']$//')
+    # router 側 APIRouter(prefix="...")
+    local router_files
+    router_files=$(find 03-code-modernization/output/app/router -name '*.py' ! -name '__init__.py' 2>/dev/null)
+    : > "$impl_paths_file"
+    for rf in $router_files; do
+      local rp
+      rp=$(grep -oE 'APIRouter\([^)]*prefix=["'"'"'][^"'"'"']+["'"'"']' "$rf" \
+        | grep -oE 'prefix=["'"'"'][^"'"'"']+["'"'"']' | head -1 \
+        | sed -E 's/prefix=["'"'"']//; s/["'"'"']$//')
+      [ -n "$rp" ] && echo "${include_prefix}${rp}" | sed -E 's|\{[^}]*\}|{ID}|g' >> "$impl_paths_file"
+    done
+    sort -u "$impl_paths_file" -o "$impl_paths_file"
+    echo "  [実装側 prefix 合成 path] $(wc -l < "$impl_paths_file")"
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  $main_py が見つからない (Step 3 未実施?)"
+    return
+  fi
+
+  # 3. Backend が起動中なら /openapi.json と照合
+  if curl -fsS -m 3 http://localhost:8080/openapi.json > /tmp/_oai.json 2>/dev/null; then
+    if command -v jq >/dev/null 2>&1; then
+      jq -r '.paths | keys[]' /tmp/_oai.json \
+        | sed -E 's|\{[^}]*\}|{ID}|g' \
+        | grep -v '^/healthz$' \
+        | sort -u > "$oai_paths_file"
+      echo "  [OpenAPI paths] $(wc -l < "$oai_paths_file")"
+
+      # 仕様 vs OpenAPI の前方一致照合
+      local missing=0
+      while IFS= read -r p; do
+        # 仕様 path の prefix で始まる OpenAPI path があれば OK
+        if ! grep -qE "^${p}(/|$)" "$oai_paths_file" && ! grep -qF "$p" "$oai_paths_file"; then
+          echo -e "      ${RED}✗${NC} 仕様 path '$p' が OpenAPI に存在しない"
+          missing=$((missing + 1))
+        fi
+      done < "$spec_paths_file"
+
+      if [ "$missing" -eq 0 ]; then
+        echo -e "  ${GREEN}✅${NC} 仕様 ↔ 実装 OpenAPI の URL 整合 OK"
+        ((TOTAL_OK++)) || true
+      else
+        echo -e "  ${RED}❌${NC} 仕様と OpenAPI で ${missing} 件の URL 不整合"
+        echo "      → README.md / system_overview.md と app/main.py の include_router(prefix=) を見直すこと"
+        ((TOTAL_FAIL++)) || true
+      fi
+    fi
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  Backend が未起動。静的解析のみで照合します"
+
+    # 仕様 path が実装 path のいずれかに前方一致するか
+    local missing=0
+    while IFS= read -r p; do
+      local hit=0
+      while IFS= read -r ip; do
+        case "$p" in "$ip"*) hit=1; break;; esac
+      done < "$impl_paths_file"
+      if [ "$hit" -eq 0 ]; then
+        echo -e "      ${RED}✗${NC} 仕様 path '$p' が実装側 prefix 合成と不一致"
+        missing=$((missing + 1))
+      fi
+    done < "$spec_paths_file"
+    if [ "$missing" -eq 0 ]; then
+      echo -e "  ${GREEN}✅${NC} 静的解析ベースで URL 整合 OK"
+      ((TOTAL_OK++)) || true
+    else
+      echo -e "  ${RED}❌${NC} ${missing} 件の URL 不整合を検出"
+      ((TOTAL_FAIL++)) || true
+    fi
+  fi
+}
+
+# -------------------------------------------------------
+# Step 3 → Step 4: BFF が叩く path ↔ Backend OpenAPI 整合
+# -------------------------------------------------------
+# BFF lib/backend.ts の BACKEND_URL と Route Handler が組み立てる path が、
+# 実 Backend の OpenAPI に存在することを保証する。
+# -------------------------------------------------------
+check_api_contract_step3_to_step4() {
+  echo -e "\n${BLUE}━━━ Step 3 → Step 4: BFF が叩く path ↔ OpenAPI ━━━${NC}"
+
+  local backend_ts="04-frontend-nextjs/output/lib/backend.ts"
+  local route_dir="04-frontend-nextjs/output/app/api"
+
+  if [ ! -f "$backend_ts" ]; then
+    echo -e "  ${YELLOW}⚠️${NC}  $backend_ts が見つからない (Step 4-B 未実施?)"
+    return
+  fi
+
+  # BACKEND_URL のデフォルト値（process.env の右辺）から prefix を抽出
+  local backend_default
+  backend_default=$(grep -oE 'BACKEND_URL[[:space:]]*=[[:space:]]*[^;]+' "$backend_ts" \
+    | grep -oE '"http[^"]+"' | head -1 | tr -d '"')
+  echo "  [BFF BACKEND_URL default] ${backend_default:-未検出}"
+
+  # Route Handler が backend.{get|post|patch|delete}("/...") に渡す path 引数
+  local bff_paths_file="/tmp/_verify_bff_paths.txt"
+  grep -rhoE 'backend\.(get|post|patch|delete)\([[:space:]]*[`"]([^`"]+)[`"]' "$route_dir" 2>/dev/null \
+    | grep -oE '[`"][/][^`"]+[`"]' | tr -d '`"' \
+    | sed -E 's|\$\{[^}]*\}|{ID}|g; s|/$||' \
+    | sort -u > "$bff_paths_file"
+  echo "  [BFF が叩く Backend path 数] $(wc -l < "$bff_paths_file")"
+
+  # Backend OpenAPI と照合
+  if curl -fsS -m 3 http://localhost:8080/openapi.json > /tmp/_oai_step4.json 2>/dev/null \
+     && command -v jq >/dev/null 2>&1; then
+    local oai_full="/tmp/_verify_oai_full.txt"
+    jq -r '.paths | keys[]' /tmp/_oai_step4.json \
+      | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > "$oai_full"
+
+    # backend_default から prefix 部分を除いた相対 path を OpenAPI と突き合わせる
+    local prefix_path
+    prefix_path=$(echo "$backend_default" | sed -E 's|^https?://[^/]+||')
+    echo "  [Backend prefix from BACKEND_URL] ${prefix_path}"
+
+    local missing=0
+    while IFS= read -r bp; do
+      local full_path="${prefix_path}${bp}"
+      if ! grep -qF "$full_path" "$oai_full"; then
+        echo -e "      ${RED}✗${NC} BFF が叩く '${full_path}' が OpenAPI に存在しない"
+        missing=$((missing + 1))
+      fi
+    done < "$bff_paths_file"
+
+    if [ "$missing" -eq 0 ]; then
+      echo -e "  ${GREEN}✅${NC} BFF が叩く path がすべて OpenAPI に存在"
+      ((TOTAL_OK++)) || true
+    else
+      echo -e "  ${RED}❌${NC} ${missing} 件不一致 — BACKEND_URL もしくは Route Handler の path を見直す"
+      ((TOTAL_FAIL++)) || true
+    fi
+  else
+    echo -e "  ${YELLOW}⚠️${NC}  Backend 未起動 or jq なし。詳細照合をスキップ"
+  fi
+}
+
+# -------------------------------------------------------
 # メイン
 # -------------------------------------------------------
 echo -e "${BLUE}==========================================${NC}"
@@ -505,15 +690,18 @@ case "$CHECK" in
   3)   check_step3_tests ;;
   3-4) check_step3_to_step4 ;;
   ddl) check_ddl_psql ;;
+  api) check_api_contract_step1_to_step3; check_api_contract_step3_to_step4 ;;
   all)
     check_step1_to_step2
     check_step2_to_step3
     check_step3_tests
     check_step3_to_step4
     check_ddl_psql
+    check_api_contract_step1_to_step3
+    check_api_contract_step3_to_step4
     ;;
   *)
-    echo "Usage: $0 [1-2|2-3|3|3-4|ddl|all]"
+    echo "Usage: $0 [1-2|2-3|3|3-4|ddl|api|all]"
     exit 1
     ;;
 esac

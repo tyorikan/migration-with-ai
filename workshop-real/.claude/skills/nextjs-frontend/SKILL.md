@@ -103,6 +103,29 @@ export async function POST(req: NextRequest) {
 }
 ```
 
+## 4-X. 設計時の Backend OpenAPI 照合（**Step 4-A の必須手順**）
+
+> **過去の事故**: Step 4-A 設計書 / `BACKEND_URL` を `/api/v1` 前提で書いたが、Step 3 Backend は prefix なしで実装されており、Step 4-B 実装段階で初めて発覚。BFF を `/api/v1` 抜きに調整する応急処置で先に進んでしまい、Step 3 の瑕疵を覆い隠した。
+
+設計フェーズ (`/design-frontend` agent / Step 4-A) では、**Backend が起動可能なら必ず OpenAPI を取得して path 整合を確認** すること:
+
+```bash
+# 1. Backend を起動
+docker compose --profile step3 up -d app && sleep 5
+
+# 2. OpenAPI から実 path を取得
+curl -fsS http://localhost:8080/openapi.json | jq -r '.paths | keys[]' | sort
+# 期待出力例: ["/api/v1/store-visits", "/api/v1/store-visits/{visit_id}", "/healthz"]
+
+# 3. 設計に書く BACKEND_URL を、この実態に合わせて決定する
+#    例: /api/v1/store-visits が公開されている → BACKEND_URL=http://app:8080/api/v1
+#    例: /store-visits が公開されている → BACKEND_URL=http://app:8080
+```
+
+**Backend が動かない / 起動できない場合**は、`03-code-modernization/output/app/main.py` の `include_router(prefix=…)` と `app/router/*.py` の `APIRouter(prefix=…)` を直読みして `/openapi.json` 相当を **静的解析** で求める。
+
+設計書 (`design/api-client.md` `design/overview.md`) に `BACKEND_URL` を書く際は、この実 path 起点で逆算した値を採用 (希望や仕様書だけで決めない)。設計と Backend が乖離している場合は **設計を Backend に寄せる前に Step 3 を直すべき** か、`/clear` してユーザーに判断を仰ぐ。
+
 ## 5. server-only Backend クライアント
 
 ```ts
@@ -298,6 +321,7 @@ export default defineConfig({
 | 症状 | 原因と対処 |
 |------|-----------|
 | BFF から `fetch failed` | コンテナ内で `BACKEND_URL=http://localhost:8080/...` のままで Docker network から見えない。`http://app:8080/api/v1` にする |
+| BFF から **404 `{"detail":"Not Found"}`** | `BACKEND_URL` の prefix と Backend 実 path が不一致。**`curl /openapi.json` で実 path を確認** し、BFF の URL を実態に合わせる。Step 4-A の §4-X 参照 |
 | Hydration mismatch | RSC で `Date.now()` `Math.random()` を直書き。フォーマット系はクライアント側に寄せる |
 | Cookie が読めない | Next.js 15 で `cookies()` は async。`const c = await cookies()` |
 | shadcn の color が反映されない | `tailwind.config.ts` の `content` に `"./components/**"` `"./app/**"` を含めていない |

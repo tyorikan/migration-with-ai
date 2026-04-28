@@ -10,6 +10,34 @@ Step 3 Phase 2 + 3: テストコード生成（🔴 RED）→ 実装（🟢 GREE
 - Code Wiki: `01-reverse-engineering/output/wiki/classes/`（Apex クラスの詳細ロジック）
 - DDL: `02-schema-migration/output/generated_ddl.sql`（SQLAlchemy モデル生成のベース）
 
+## Phase 0: API 契約の事前確定（**必須・テスト 1 行も書く前**）
+
+> **過去の事故**: `03-code-modernization/README.md` が `/api/v1/store-visits` を仕様化していたのに、実装は `/store-visits` (prefix なし) で生成され、テストも実装に追従して書かれてしまい pytest 全 PASS で見逃された。Step 4 (Frontend) 構築時に発覚。
+
+以下を Phase 2 に入る前に必ず実行:
+
+1. **公開 URL の真実を 3 ソースから抽出**:
+   - `01-reverse-engineering/output/system_overview.md` の API 仕様表
+   - `01-reverse-engineering/output/wiki/classes/*.md` の「推奨マッピング」欄
+   - `03-code-modernization/README.md` の curl 例 / Apex 機能等価性チェックリスト
+   ```bash
+   grep -hoE '/api/v[0-9]+/[a-z][a-z0-9/_{}-]*|/store-visits[a-z0-9/_{}-]*' \
+     01-reverse-engineering/output/system_overview.md \
+     03-code-modernization/README.md | sort -u
+   ```
+2. 矛盾があれば実装前に **どちらを採用するか確定** し、矛盾するドキュメントを更新
+3. `03-code-modernization/output/tests/contract.py` を作成 (`tdd-modernize` SKILL §Step 0 のテンプレート):
+   ```python
+   API_PREFIX = "/api/v1"
+   ROUTES = {
+       "list_visits": ("GET", f"{API_PREFIX}/store-visits"),
+       # ...
+       "healthz": ("GET", "/healthz"),  # infra path (no prefix)
+   }
+   ```
+4. FastAPI prefix 戦略を決定（`sfdc-to-python` §0 の表 A/B/C から選択）
+5. **以降のテストは `tests/contract.py` から URL を取得** し、直書き禁止
+
 ## Phase 2: 🔴 RED — テストコード + スタブ生成
 
 以下のテストシナリオに基づき、**テストコード + スタブ構造** を生成してください。
@@ -110,10 +138,25 @@ docker compose --profile step3 up -d db app
 sleep 3 && docker compose logs app | tail -20
 # logs に "Uvicorn running on http://0.0.0.0:8080" が出ていれば OK。
 # "No module named uvicorn" 等が出ていれば Dockerfile の Python バージョン不整合を疑う。
+
+# 6. URL 契約適合 (★必須★ — 過去の prefix 抜け事故対策)
+curl -fsS http://localhost:8080/openapi.json | jq -r '.paths | keys[]' \
+  | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/oai.txt
+python3 -c "from tests.contract import ROUTES; [print(p) for _,p in ROUTES.values()]" \
+  | sed -E 's|\{[^}]*\}|{ID}|g' | sort -u > /tmp/contract.txt
+diff /tmp/contract.txt /tmp/oai.txt && echo "✅ URL 契約適合" \
+  || { echo "🔴 URL 契約と実装が不一致 — Phase 0 に戻る"; exit 1; }
+
+# 7. README curl 例の実 path も叩いて 200/204 を返すか確認
+grep -oE 'http://localhost:8080/[^[:space:]\\)]+' README.md | sort -u | while read url; do
+  status=$(curl -sS -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+  echo "$status  $url"
+done
+
 docker compose --profile step3 down
 ```
 
-**5 つすべてが PASS（または bandit はノイズのみで CRITICAL なし）するまでは GREEN とみなさない。** 失敗があれば、以下のいずれかで対応すること:
+**7 つすべてが PASS（または bandit はノイズのみで CRITICAL なし）するまでは GREEN とみなさない。** 失敗があれば、以下のいずれかで対応すること:
 - 実装を修正して再実行
 - ノイズ（false positive）の場合は明示的に `# noqa` / `# type: ignore[<rule>]` / `# nosec B<id>` を付け、理由をコメントで残す
 
