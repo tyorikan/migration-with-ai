@@ -1,0 +1,166 @@
+<template>
+    <lightning-card title="店舗訪問記録 入力" icon-name="standard:visit">
+        <div class="slds-p-around_medium">
+            <!-- 店舗選択 -->
+            <lightning-record-picker
+                label="店舗"
+                placeholder="店舗を検索..."
+                object-api-name="Store__c"
+                value={storeId}
+                onchange={handleStoreChange}
+                required>
+            </lightning-record-picker>
+
+            <!-- 訪問日 -->
+            <lightning-input
+                type="date"
+                label="訪問日"
+                value={visitDate}
+                onchange={handleFieldChange}
+                data-field="visitDate"
+                required>
+            </lightning-input>
+
+            <!-- 訪問目的 -->
+            <lightning-combobox
+                label="訪問目的"
+                value={purpose}
+                options={purposeOptions}
+                onchange={handleFieldChange}
+                data-field="purpose"
+                required>
+            </lightning-combobox>
+
+            <!-- 訪問概要 -->
+            <lightning-textarea
+                label="訪問概要"
+                value={summary}
+                onchange={handleFieldChange}
+                data-field="summary"
+                max-length="32768"
+                placeholder="訪問の概要、所感を記入してください...">
+            </lightning-textarea>
+
+            <!-- 次回アクション -->
+            <lightning-textarea
+                label="次回アクション"
+                value={nextAction}
+                onchange={handleFieldChange}
+                data-field="nextAction"
+                max-length="1000"
+                placeholder="次回の訪問で実施すべきことを記入してください...">
+            </lightning-textarea>
+
+            <!-- 評価 -->
+            <div class="slds-form-element slds-m-top_small">
+                <label class="slds-form-element__label">評価</label>
+                <div class="slds-form-element__control">
+                    <template for:each={ratingStars} for:item="star">
+                        <lightning-icon
+                            key={star.value}
+                            icon-name={star.icon}
+                            size="small"
+                            class="slds-m-right_xx-small rating-star"
+                            onclick={handleRatingClick}
+                            data-value={star.value}>
+                        </lightning-icon>
+                    </template>
+                    <span class="slds-m-left_small">{ratingLabel}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 訪問詳細（アクションアイテム） -->
+        <div class="slds-p-around_medium">
+            <div class="slds-text-heading_small slds-m-bottom_small">
+                アクションアイテム
+                <lightning-button
+                    label="追加"
+                    variant="brand"
+                    icon-name="utility:add"
+                    onclick={handleAddDetail}
+                    class="slds-m-left_small">
+                </lightning-button>
+            </div>
+
+            <template if:true={details.length}>
+                <template for:each={details} for:item="detail" for:index="index">
+                    <lightning-card key={detail.id} class="slds-m-bottom_small">
+                        <div slot="actions">
+                            <lightning-button-icon
+                                icon-name="utility:delete"
+                                variant="bare"
+                                alternative-text="削除"
+                                data-index={index}
+                                onclick={handleRemoveDetail}>
+                            </lightning-button-icon>
+                        </div>
+                        <div class="slds-p-horizontal_small">
+                            <lightning-layout multiple-rows>
+                                <lightning-layout-item size="6" padding="around-small">
+                                    <lightning-combobox
+                                        label="カテゴリ"
+                                        value={detail.category}
+                                        options={categoryOptions}
+                                        data-index={index}
+                                        data-field="category"
+                                        onchange={handleDetailChange}
+                                        required>
+                                    </lightning-combobox>
+                                </lightning-layout-item>
+                                <lightning-layout-item size="3" padding="around-small">
+                                    <lightning-input
+                                        type="number"
+                                        label="優先度 (1-5)"
+                                        value={detail.priority}
+                                        min="1"
+                                        max="5"
+                                        data-index={index}
+                                        data-field="priority"
+                                        onchange={handleDetailChange}>
+                                    </lightning-input>
+                                </lightning-layout-item>
+                                <lightning-layout-item size="3" padding="around-small">
+                                    <lightning-input
+                                        type="date"
+                                        label="期限日"
+                                        value={detail.dueDate}
+                                        data-index={index}
+                                        data-field="dueDate"
+                                        onchange={handleDetailChange}>
+                                    </lightning-input>
+                                </lightning-layout-item>
+                                <lightning-layout-item size="12" padding="around-small">
+                                    <lightning-textarea
+                                        label="説明"
+                                        value={detail.description}
+                                        data-index={index}
+                                        data-field="description"
+                                        onchange={handleDetailChange}>
+                                    </lightning-textarea>
+                                </lightning-layout-item>
+                            </lightning-layout>
+                        </div>
+                    </lightning-card>
+                </template>
+            </template>
+        </div>
+
+        <!-- フッターボタン -->
+        <div slot="footer">
+            <lightning-button label="キャンセル" onclick={handleCancel}></lightning-button>
+            <lightning-button
+                label="下書き保存"
+                variant="neutral"
+                onclick={handleSaveDraft}
+                class="slds-m-left_small">
+            </lightning-button>
+            <lightning-button
+                label="提出"
+                variant="brand"
+                onclick={handleSubmit}
+                class="slds-m-left_small">
+            </lightning-button>
+        </div>
+    </lightning-card>
+</template>

@@ -1,0 +1,58 @@
+<apex:page controller="StoreVisitSearchController" title="店舗訪問記録検索" showHeader="true" sidebar="true" lightningStylesheets="true">
+    <apex:form id="searchForm">
+        <apex:pageBlock title="店舗訪問記録 検索" mode="edit">
+            <apex:pageBlockSection title="検索条件" columns="2">
+                <apex:inputField value="{!searchCriteria.Store__c}" label="店舗"/>
+                <apex:selectList value="{!selectedStatus}" size="1" label="ステータス">
+                    <apex:selectOption itemValue="" itemLabel="-- すべて --"/>
+                    <apex:selectOption itemValue="Draft" itemLabel="下書き"/>
+                    <apex:selectOption itemValue="Submitted" itemLabel="提出済み"/>
+                    <apex:selectOption itemValue="Approved" itemLabel="承認済み"/>
+                    <apex:selectOption itemValue="Rejected" itemLabel="差し戻し"/>
+                </apex:selectList>
+                <apex:input type="date" value="{!fromDate}" label="訪問日（From）"/>
+                <apex:input type="date" value="{!toDate}" label="訪問日（To）"/>
+                <apex:selectList value="{!selectedRegion}" size="1" label="地域">
+                    <apex:selectOption itemValue="" itemLabel="-- すべて --"/>
+                    <apex:selectOption itemValue="北海道・東北" itemLabel="北海道・東北"/>
+                    <apex:selectOption itemValue="関東" itemLabel="関東"/>
+                    <apex:selectOption itemValue="中部" itemLabel="中部"/>
+                    <apex:selectOption itemValue="関西" itemLabel="関西"/>
+                    <apex:selectOption itemValue="中国・四国" itemLabel="中国・四国"/>
+                    <apex:selectOption itemValue="九州・沖縄" itemLabel="九州・沖縄"/>
+                </apex:selectList>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockButtons location="bottom">
+                <apex:commandButton value="検索" action="{!doSearch}" rerender="resultPanel"/>
+                <apex:commandButton value="クリア" action="{!doClear}" rerender="searchForm,resultPanel"/>
+                <apex:commandButton value="CSV エクスポート" action="{!doExport}"/>
+            </apex:pageBlockButtons>
+        </apex:pageBlock>
+
+        <apex:outputPanel id="resultPanel">
+            <apex:pageBlock title="検索結果（{!searchResults.size} 件）" rendered="{!searchResults.size > 0}">
+                <apex:pageBlockTable value="{!searchResults}" var="v">
+                    <apex:column headerValue="訪問記録番号">
+                        <apex:outputLink value="/{!v.Id}">{!v.Name}</apex:outputLink>
+                    </apex:column>
+                    <apex:column value="{!v.Store__r.StoreName__c}" headerValue="店舗名"/>
+                    <apex:column value="{!v.Store__r.Region__c}" headerValue="地域"/>
+                    <apex:column value="{!v.VisitDate__c}" headerValue="訪問日"/>
+                    <apex:column value="{!v.Purpose__c}" headerValue="訪問目的"/>
+                    <apex:column headerValue="ステータス">
+                        <apex:outputText value="{!v.Status__c}" 
+                            style="{!IF(v.Status__c == 'Approved', 'color:green; font-weight:bold;',
+                                    IF(v.Status__c == 'Rejected', 'color:red; font-weight:bold;', ''))}"/>
+                    </apex:column>
+                    <apex:column value="{!v.Rating__c}" headerValue="評価"/>
+                    <apex:column value="{!v.Visitor__r.Name}" headerValue="訪問者"/>
+                </apex:pageBlockTable>
+            </apex:pageBlock>
+
+            <apex:pageBlock rendered="{!searchResults.size == 0 && hasSearched}">
+                <apex:pageMessage severity="info" summary="検索条件に一致する訪問記録が見つかりませんでした。"/>
+            </apex:pageBlock>
+        </apex:outputPanel>
+    </apex:form>
+</apex:page>

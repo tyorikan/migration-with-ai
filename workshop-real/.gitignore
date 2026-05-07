@@ -1,0 +1,26 @@
+# --- Next.js Frontend (Step 4) ビルド成果物 ---
+04-frontend-nextjs/output/.next/
+04-frontend-nextjs/output/node_modules/
+04-frontend-nextjs/output/coverage/
+04-frontend-nextjs/output/playwright-report/
+04-frontend-nextjs/output/test-results/
+04-frontend-nextjs/output/.env.local
+04-frontend-nextjs/output/pnpm-lock.yaml.bak
+
+# --- Step 3 ローカル実行成果物（venv / cache / coverage）---
+03-code-modernization/output/.venv/
+03-code-modernization/output/.coverage
+03-code-modernization/output/__pycache__/
+**/__pycache__/
+
+# 一時バックアップ
+*.bak
+*.bak.*
+
+# 実行ログ（import_data.log 等）
+*.log
+
+# OS / エディタ
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,84 @@
+services:
+  # -------------------------------------------------------
+  # 🐘 PostgreSQL — 移行先 DB
+  # -------------------------------------------------------
+  db:
+    image: postgres:16
+    container_name: sfdc-migration-db
+    environment:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: migration_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # ワークショップのディレクトリをマウント（SQL / CSV / スクリプトを直接実行可能に）
+      # SFDC エクスポート CSV（./data/）も含めて /workspace 配下で参照可能
+      - .:/workspace:ro
+      # データ永続化
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d migration_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # -------------------------------------------------------
+  # 🐍 FastAPI App — 移行後アプリケーション
+  # -------------------------------------------------------
+  # Step 3 でコード生成後に有効化
+  app:
+    build:
+      context: ./03-code-modernization/output
+      dockerfile: Dockerfile
+    container_name: sfdc-migration-app
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: app_user
+      DB_PASSWORD: password
+      DB_NAME: migration_db
+    depends_on:
+      db:
+        condition: service_healthy
+    # ソースコードをマウント（開発時のホットリロード用）
+    volumes:
+      - ./03-code-modernization/output:/app:ro
+    # `app` は Step 3 単体でも、Step 4 (Next.js Frontend) と一緒でも使うので
+    # 両 profile に登録する。Step 4 では `nextjs` サービスが BFF 経由で `app:8080`
+    # を呼ぶため、両者を同時起動する必要がある。
+    #   Step 3 単体起動: docker compose --profile step3 up -d
+    #   Step 4 統合起動: docker compose --profile nextjs up -d
+    profiles:
+      - step3
+      - nextjs
+
+  # -------------------------------------------------------
+  # ⚛️ Next.js Frontend — Step 4 (BFF + 管理画面)
+  # -------------------------------------------------------
+  # Step 4-A の `/design-frontend` で設計 → Step 4-B の `/implement-frontend`
+  # で実装した Next.js (App Router) アプリ。Backend (`app:8080`) を BFF Route
+  # Handler 経由で呼ぶ構成のため、CORS 設定は不要。
+  #   起動: docker compose --profile nextjs up -d --build
+  nextjs:
+    build:
+      context: ./04-frontend-nextjs/output
+      dockerfile: Dockerfile
+    container_name: sfdc-migration-nextjs
+    ports:
+      - "3000:3000"
+    environment:
+      # BFF Route Handler が叩く Backend のベース URL（compose 内部 NW）
+      # Step 3 FastAPI は `/api/v1/store-visits` を公開
+      BACKEND_URL: http://app:8080/api/v1
+      NODE_ENV: production
+    depends_on:
+      app:
+        condition: service_started
+    profiles:
+      - nextjs
+
+volumes:
+  pgdata:

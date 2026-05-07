@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>StoreCode__c</fullName>
+    <description>店舗を一意に識別するコード</description>
+    <externalId>true</externalId>
+    <label>店舗コード</label>
+    <length>20</length>
+    <required>true</required>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

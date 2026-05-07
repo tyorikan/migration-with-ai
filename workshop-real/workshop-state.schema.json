@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/anthropics/claude-code/workshop-real/workshop-state.schema.json",
+  "title": "Workshop State",
+  "description": "SFDC モダナイゼーション ワークショップの進捗・メトリクス・レビュースコアを表現するスキーマ。scripts/update-state.sh で更新、scripts/validate-state.sh で検証する。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workshop_id", "target_model", "source_dir", "started_at", "steps"],
+  "properties": {
+    "workshop_id": {
+      "type": ["string", "null"],
+      "description": "任意。ワークショップ実施回ごとの識別子（例: 顧客名 + 日付）"
+    },
+    "target_model": {
+      "type": "string",
+      "description": "対象モデル ID（例: claude-opus-4.7）。CLAUDE.md ハーネス進化ポリシーと整合させる"
+    },
+    "source_dir": {
+      "type": "string",
+      "description": "解析対象 SFDX プロジェクトのパス（例: ./examples）"
+    },
+    "started_at": {
+      "type": ["string", "null"],
+      "description": "ワークショップ開始時刻（ISO 8601、例: 2026-04-27T05:00:00Z）",
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z?)?$"
+    },
+    "steps": {
+      "type": "object",
+      "description": "Step 別の進捗。step1〜step5 を想定するが将来の追加を妨げない",
+      "additionalProperties": {
+        "$ref": "#/definitions/step"
+      }
+    }
+  },
+  "definitions": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "pending",
+        "in_progress",
+        "completed",
+        "failed",
+        "skipped"
+      ],
+      "description": "Step / Phase の進捗状態"
+    },
+    "isoDateTimeOrNull": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z?)?$",
+      "description": "ISO 8601 形式の日時、または null"
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "$ref": "#/definitions/status" },
+        "output": {
+          "type": "string",
+          "description": "成果物のパス（ファイル or ディレクトリ）"
+        },
+        "review": {
+          "$ref": "#/definitions/review",
+          "description": "Phase 単位の独立レビュー（任意）。Step 4 のように設計フェーズ・実装フェーズで個別ゲートを設けたい場合に使う"
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "gate_passed", "reviewed_at", "feedback_file"],
+      "properties": {
+        "score": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 5,
+          "description": "quality-rubric に基づく 0〜5 の品質スコア。未評価は null"
+        },
+        "gate_passed": {
+          "type": "boolean",
+          "description": "review-gate を通過したか"
+        },
+        "reviewed_at": {
+          "$ref": "#/definitions/isoDateTimeOrNull",
+          "description": "レビュー実施時刻"
+        },
+        "feedback_file": {
+          "type": ["string", "null"],
+          "description": "レビュー結果ファイルのパス（例: 01-reverse-engineering/output/review_report.md）"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["independent_context", "self_review", "manual"],
+          "description": "レビュー方式（任意）"
+        },
+        "report_path": {
+          "type": ["string", "null"],
+          "description": "詳細レポートのパス（feedback_file と別に持つ場合）"
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "phases", "review"],
+      "properties": {
+        "status": { "$ref": "#/definitions/status" },
+        "phases": {
+          "type": "object",
+          "description": "Step 内のフェーズ（例: discover / wiki / reverse / assess）",
+          "additionalProperties": {
+            "$ref": "#/definitions/phase"
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "description": "Step 固有のメトリクス。キーは Step ごとに自由（追加プロパティ許容）",
+          "additionalProperties": {
+            "type": ["number", "string", "boolean", "null", "array", "object"]
+          }
+        },
+        "consistency": {
+          "type": "object",
+          "description": "Step 間整合性チェック結果（verify-consistency.sh が更新）",
+          "additionalProperties": {
+            "type": ["number", "string", "boolean", "null", "array", "object"]
+          }
+        },
+        "review": { "$ref": "#/definitions/review" }
+      }
+    }
+  }
+}

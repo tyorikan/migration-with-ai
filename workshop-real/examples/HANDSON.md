@@ -1,0 +1,896 @@
+# 🏪 店舗訪問管理アプリ — AI 駆動モダナイゼーション ハンズオン
+
+> **サンプルアプリ「店舗訪問管理（StoreVisit）」を題材に、SFDC → Google Cloud（Python/FastAPI/PostgreSQL）への移行を AI 駆動で体験する**
+>
+> このハンズオンでは、`examples/force-app/` に含まれる実際の Apex コード・オブジェクト定義を入力として使用します。
+
+---
+
+## 📋 ハンズオン概要
+
+| 項目 | 内容 |
+|------|------|
+| **題材** | 店舗訪問管理アプリ（StoreVisit） |
+| **ソースコード** | `examples/force-app/main/default/` |
+| **AI ツール** | Claude Code（`/` スラッシュコマンドで実行） |
+| **所要時間** | 約 4〜5 時間 |
+| **前提** | Docker Desktop がインストール済み、Claude Code が利用可能 |
+
+### サンプルアプリの構成
+
+```mermaid
+erDiagram
+    Store__c ||--o{ StoreVisit__c : "has visits"
+    StoreVisit__c ||--o{ VisitDetail__c : "has details"
+    Store__c ||--o{ MonthlyVisitSummary__c : "has summaries"
+
+    Store__c {
+        Id sfdc_id PK
+        Text StoreCode__c
+        Text StoreName__c
+        Text Region__c
+        Text Address__c
+        Phone Phone__c
+        Lookup StoreManager__c
+        Checkbox IsActive__c
+        Date LastVisitDate__c
+        Number AverageRating__c
+    }
+
+    StoreVisit__c {
+        Id sfdc_id PK
+        Lookup Store__c FK
+        Date VisitDate__c
+        Picklist Status__c
+        Picklist Purpose__c
+        LongTextArea Summary__c
+        Text NextAction__c
+        Number Rating__c
+        Lookup Visitor__c
+    }
+
+    VisitDetail__c {
+        Id sfdc_id PK
+        MasterDetail StoreVisit__c FK
+        Picklist Category__c
+        LongTextArea Description__c
+        Date DueDate__c
+        Checkbox IsCompleted__c
+        Number Priority__c
+    }
+
+    MonthlyVisitSummary__c {
+        Id sfdc_id PK
+        Lookup Store__c FK
+        Date MonthStart__c
+        Date MonthEnd__c
+        Number VisitCount__c
+        Number AverageRating__c
+        Number MinRating__c
+        Number MaxRating__c
+        Number PendingActionCount__c
+    }
+```
+
+### ソースコード一覧
+
+| ファイル | 種別 | 行数 | 概要 |
+|---------|------|------|------|
+| `StoreVisitController.cls` | REST API | 269行 | CRUD エンドポイント（GET/POST/PATCH/DELETE） |
+| `StoreVisitService.cls` | Service | 244行 | ビジネスロジック（ステータス遷移、バリデーション） |
+| `StoreVisitTriggerHandler.cls` | Trigger Handler | 166行 | 副作用管理（最終訪問日更新、通知、平均評価再計算） |
+| `StoreVisitTrigger.trigger` | Trigger | 23行 | after insert/update, before delete |
+| `StoreVisitMonthlyBatch.cls` | Batch | 147行 | 月次集計バッチ（MonthlyVisitSummary 作成） |
+| `StoreVisitScheduler.cls` | Scheduler | 16行 | バッチスケジューラー（毎月1日 AM 2:00） |
+| `StoreVisitControllerTest.cls` | Test | 322行 | Controller テスト（13テストメソッド） |
+| `StoreVisitServiceTest.cls` | Test | 189行 | Service テスト（10テストメソッド） |
+| `storeVisitForm/` | LWC | 350行 | 訪問記録入力フォーム |
+| `StoreVisitSearch.page` | Visualforce | 59行 | 検索画面 |
+
+---
+
+## 🛠️ 事前準備
+
+### 1. Docker Desktop を起動
+
+```bash
+# Docker が動いていることを確認
+docker --version
+docker compose version
+```
+
+### 2. Claude Code のプロジェクト設定
+
+```bash
+# workshop-real ディレクトリに移動
+cd workshop-real
+
+# Claude Code を起動（CLAUDE.md が自動読み込みされる）
+claude
+```
+
+> [!TIP]
+> `CLAUDE.md` が自動的に読み込まれ、変換ルール・アーキテクチャ定義が AI に注入されます。
+> さらに `.claude/skills/` と `.claude/agents/` のドメインナレッジがコンテキストとして利用可能です。
+
+> [!NOTE]
+> **ソースディレクトリの指定方法**
+> すべてのコマンドは引数として SFDX ソースディレクトリのパスを受け取ります。
+> ```bash
+> # このハンズオン（サンプルアプリ）の場合
+> /reverse-engineer ./examples
+>
+> # お客様の実データを使う場合（sources/ にSFDXプロジェクトを配置）
+> /reverse-engineer ./sources
+> ```
+
+### 3. PostgreSQL を起動
+
+```bash
+docker compose up -d db
+
+# 起動確認
+docker compose exec db psql -U app_user -d migration_db -c "SELECT 1;"
+```
+
+---
+
+## Step 1: 🔑 AI による設計ドキュメント逆起こし（90分）
+
+> **ゴール**: ソースコードから設計書を自動生成し、移行対象の全体像を把握する
+
+### 使用するコマンド・Agent・Skill
+
+```mermaid
+flowchart LR
+    CMD0["/discover-source"] --> AGT["sfdc-analyzer<br/>Agent"]
+    CMD1["/generate-wiki"] --> AGT
+    CMD2["/reverse-engineer"] --> AGT
+    AGT -.-> SKL["reverse-engineering<br/>Skill"]
+
+    AGT --> OUT0["source_tree.md<br/>knowledge_catalog.md"]
+    AGT --> OUT1["wiki/<br/>(Code Wiki)"]
+    AGT --> OUT2["system_overview.md"]
+
+    CMD3["/assess-migration"] --> AGT
+    AGT --> OUT3["migration_assessment.md"]
+
+    style CMD0 fill:#0F9D58,color:#fff
+    style CMD1 fill:#F4B400,color:#000
+    style CMD2 fill:#4285F4,color:#fff
+    style CMD3 fill:#4285F4,color:#fff
+    style SKL fill:#FBBC04,color:#000
+```
+
+### 1.0 ソース再帰探索 + ナレッジ抽出（Phase 0）
+
+```
+/discover-source ./examples
+```
+
+**AI の挙動**:
+1. `find` で `examples/` を再帰走査し Tree 構造を生成
+2. `grep` で SFDC 依存 API（15 カテゴリ）を検出
+3. ビジネスロジックパターン + コーディング慣習を抽出
+
+**出力**: `source_tree.md` + `knowledge_catalog.md`
+
+### 1.1 Code Wiki 生成（Phase 1）
+
+```
+/generate-wiki ./examples
+```
+
+**AI の挙動**:
+1. Phase 0 の成果物を参照し、全ソースファイルを読み込み
+2. **1ファイル = 1ページ** の Markdown Wiki を生成:
+   - `wiki/index.md` — プロジェクト全体概要 + ナビゲーション
+   - `wiki/architecture.md` — レイヤー図 + 呼び出しマトリクス
+   - `wiki/data-model.md` — 統合 ER 図 + リレーション一覧
+   - `wiki/objects/Store__c.md` 等 — フィールド定義 + バリデーション
+   - `wiki/classes/StoreVisitService.md` 等 — メソッド一覧 + 依存関係 + ビジネスルール
+   - `wiki/triggers/StoreVisitTrigger.md` — 副作用フロー図
+   - `wiki/ui/storeVisitForm.md` — 画面フロー + Apex バインディング
+   - `wiki/batch/StoreVisitMonthlyBatch.md` — バッチフロー + 入出力
+
+**出力**: `01-reverse-engineering/output/wiki/` 配下（約15ページ）
+
+### 1.2 統合設計書生成
+
+```
+/reverse-engineer ./examples
+```
+
+**AI の挙動**:
+1. **Code Wiki を主要インプット** として参照（原文の再読み込みは不要）
+2. Wiki の各ページを統合し `system_overview.md` を生成
+3. Skill `reverse-engineering` の出力フォーマットと Mermaid スタイルガイドに従い出力
+
+**期待される出力** (`01-reverse-engineering/output/system_overview.md`):
+- ER 図（4 オブジェクトのリレーション）
+- クラス責務一覧（REST/Service/TriggerHandler/Batch/Scheduler/Test）
+- API 仕様（5 エンドポイント: GET一覧/GET詳細/POST/PATCH/DELETE）
+- ステータス遷移図（Draft → Submitted → Approved/Rejected）
+- 副作用マップ（Trigger → 最終訪問日更新、通知、平均評価再計算）
+- テストケース一覧（23テストメソッドの assert）
+
+### 1.2 移行影響分析
+
+```
+/assess-migration ./examples
+```
+
+**期待される出力** (`01-reverse-engineering/output/migration_assessment.md`):
+- コンポーネント別難易度スコアリング
+
+| コンポーネント | 種別 | 行数 | SFDC依存度 | 難易度 |
+|-------------|------|------|----------|-------|
+| StoreVisitController | REST | 269 | 高 | M |
+| StoreVisitService | Service | 244 | 中 | M |
+| StoreVisitTriggerHandler | Trigger | 166 | 高 | L |
+| StoreVisitMonthlyBatch | Batch | 147 | 高 | L |
+| storeVisitForm | LWC | 350 | 高 | XL（スコープ外） |
+
+### 1.3 品質チェック
+
+生成された設計書を確認し、以下をチェック：
+
+- [ ] 4 オブジェクト（Store, StoreVisit, VisitDetail, MonthlyVisitSummary）が網羅されている
+- [ ] ER 図のリレーションが正しい（Lookup / MasterDetail の区別）
+- [ ] ステータス遷移が `Draft → Submitted → Approved/Rejected` になっている
+- [ ] テストクラスの全 assert がテストシナリオとして抽出されている
+
+### 1.4 独立コンテキストレビュー（推奨）
+
+> [!IMPORTANT]
+> **品質を最大化するには**、builder（コード生成した AI）の思考履歴を消去し、まっさらな視点でレビューします。
+> `/clear` でコンテキストをリセットしてから `/review-gate` を実行してください。
+
+```bash
+# ① コンテキストをリセット（builder の思考履歴を消去）
+/clear
+
+# ② 独立コンテキストで品質チェック（quality-rubric スキルに基づく 5 段階スコアリング）
+/review-gate 1
+
+# ③ PASS したらリセットして Step 2 へ
+/clear
+```
+
+レビュー結果は `01-reverse-engineering/output/review_report.md` に出力されます。
+不合格（スコア 3/5 未満の軸がある場合）は修正指示が記載されるので、修正後に再度 `/review-gate 1` を実行してください。
+
+---
+
+## Step 2: 🗃️ DB スキーマ移行（45分）
+
+> **ゴール**: SFDC オブジェクト定義を PostgreSQL DDL に変換し、実データを投入して docker-compose 上で動作検証する
+
+### 使用するコマンド・Agent・Skill
+
+```mermaid
+flowchart LR
+    CMD1["/schema-convert"] --> AGT["schema-converter<br/>Agent"]
+    CMD2["/import-data"] --> AGT
+    AGT -.-> SKL["sfdc-schema-migration<br/>Skill"]
+    AGT --> OUT1["generated_ddl.sql"]
+    AGT --> OUT2["import_data.py"]
+
+    style CMD1 fill:#4285F4,color:#fff
+    style CMD2 fill:#0F9D58,color:#fff
+    style SKL fill:#FBBC04,color:#000
+```
+
+### 2.1 DDL 生成
+
+```
+/schema-convert ./examples
+```
+
+**AI の挙動**:
+1. Step 1 の `system_overview.md` から ER 図・フィールド定義を参照
+2. Agent `schema-converter` が DDL 生成を実行:
+   - Skill `sfdc-schema-migration` の命名規則を適用
+     - `Store__c` → `stores`
+     - `StoreVisit__c` → `store_visits`
+     - `VisitDetail__c` → `visit_details`
+     - `MonthlyVisitSummary__c` → `monthly_visit_summaries`
+   - Skill のデータ型マッピングを適用（Id→VARCHAR(18), DateTime→TIMESTAMPTZ 等）
+   - FK 依存関係をトポロジカルソートで解決（stores → store_visits → visit_details の順）
+3. docker-compose の PostgreSQL で DDL を検証
+
+**期待される変換例**:
+
+| SFDC フィールド | PostgreSQL カラム |
+|---------------|-----------------|
+| `StoreCode__c` (Text 10) | `store_code VARCHAR(10) NOT NULL UNIQUE` |
+| `Status__c` (Picklist) | `status VARCHAR(255) CHECK (status IN ('Draft','Submitted','Approved','Rejected'))` |
+| `Store__c` (Lookup) | `store_id VARCHAR(18) REFERENCES stores(sfdc_id) ON DELETE SET NULL` |
+| `StoreVisit__c` (MasterDetail) | `store_visit_id VARCHAR(18) NOT NULL REFERENCES store_visits(sfdc_id) ON DELETE CASCADE` |
+| `Rating__c` (Number 2,1) | `rating NUMERIC(2,1) CHECK (rating >= 1 AND rating <= 5)` |
+| `AverageRating__c` (Formula) | DDL に含めない（コメントで記録、計算戦略を別途決定） |
+
+### 2.2 DDL 適用・検証
+
+```bash
+# DDL を PostgreSQL に適用
+docker compose exec db psql -U app_user -d migration_db \
+  -f /workspace/02-schema-migration/output/generated_ddl.sql
+
+# テーブル一覧を確認
+docker compose exec db psql -U app_user -d migration_db -c "\dt"
+```
+
+**期待される結果**:
+
+```
+              List of relations
+ Schema |           Name            | Type  |  Owner
+--------+---------------------------+-------+----------
+ public | stores                    | table | app_user
+ public | store_visits              | table | app_user
+ public | visit_details             | table | app_user
+ public | monthly_visit_summaries   | table | app_user
+```
+
+### 2.3 外部キー制約の確認
+
+```bash
+docker compose exec db psql -U app_user -d migration_db -c "
+SELECT tc.table_name, kcu.column_name, ccu.table_name AS foreign_table
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+    ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage ccu
+    ON ccu.constraint_name = tc.constraint_name
+WHERE tc.constraint_type = 'FOREIGN KEY'
+ORDER BY tc.table_name;
+"
+```
+
+### 2.4 実データ投入
+
+> [!IMPORTANT]
+> DDL 適用が成功したら、SFDC エクスポート CSV から実データを PostgreSQL に投入します。
+> Step 3 の CRUD 検証で実データが必要になります。
+
+```
+/import-data ./examples
+```
+
+**AI が自律的に実行する内容**:
+1. `examples/data/` 配下の CSV を検出:
+   - `Store__c.csv` — 店舗マスタ
+   - `StoreVisit__c.csv` — 訪問記録
+   - `VisitDetail__c.csv` — 訪問詳細
+2. **`requirements-import.txt`** を生成（`psycopg2-binary` 等の依存定義）
+3. DDL のカラム定義から CSV ヘッダー → PostgreSQL カラム名のマッピングを自動生成
+4. FK 依存関係を考慮した投入順序: `stores` → `store_visits` → `visit_details`
+5. Python スクリプト `import_data.py` を生成
+6. **依存パッケージをインストール** (`pip install -r requirements-import.txt`)
+7. **スクリプトを実行** してデータを投入
+8. **投入結果を検証** （テーブル別レコード数 vs CSV 行数の一致確認）
+
+**出力**:
+```
+02-schema-migration/output/
+├── requirements-import.txt    ← 依存定義（psycopg2-binary 等）
+├── import_data.py             ← CSV → PostgreSQL 投入スクリプト
+└── data_validation.sql        ← 整合性チェッククエリ
+```
+
+> [!NOTE]
+> `/import-data` はスクリプト生成だけでなく、**実行と検証まで自律的に完了** します。
+> エラーが発生した場合は AI が自動でスクリプトを修正し、再実行します。
+
+### 2.5 データ投入結果の確認（人間による確認）
+
+AI が出力した投入サマリーを確認してください。手動で追加確認する場合:
+
+```bash
+# テーブル別レコード数を確認
+docker compose exec db psql -U app_user -d migration_db -c "
+SELECT 'stores' AS table_name, COUNT(*) FROM stores
+UNION ALL
+SELECT 'store_visits', COUNT(*) FROM store_visits
+UNION ALL
+SELECT 'visit_details', COUNT(*) FROM visit_details;
+"
+
+# データ検証 SQL を実行（孤立レコードチェック・NULL チェック等）
+docker compose exec db psql -U app_user -d migration_db \
+  -f /workspace/02-schema-migration/output/data_validation.sql
+```
+
+### 2.6 機械的検証
+
+```bash
+# Step 1 → Step 2 のデータ整合性を機械的にチェック
+./scripts/verify-consistency.sh 1-2
+```
+
+### 2.7 品質チェック
+
+- [ ] DDL がエラーなく適用できた
+- [ ] 4 テーブルが作成された
+- [ ] FK 制約: `store_visits.store_id` → `stores.sfdc_id`（SET NULL）
+- [ ] FK 制約: `visit_details.store_visit_id` → `store_visits.sfdc_id`（CASCADE）
+- [ ] FK 制約: `monthly_visit_summaries.store_id` → `stores.sfdc_id`（SET NULL）
+- [ ] Picklist の CHECK 制約が設定されている
+- [ ] CSV の全レコードが投入された（件数一致）
+- [ ] 孤立レコードが存在しない（FK 参照整合性）
+
+```bash
+# 独立コンテキストレビュー（推奨）
+/clear
+/review-gate 2
+/clear
+```
+
+---
+
+## Step 3: 🧪 TDD コードモダナイズ PoC（60分）
+
+> **ゴール**: Apex テストクラスの assert を仕様として、TDD で Python/FastAPI コードを生成する
+
+### 使用するコマンド・Agent・Skills
+
+```mermaid
+flowchart LR
+    CMD1["/extract-test-scenarios"] --> AGT["python-modernizer<br/>Agent"]
+    CMD2["/generate-and-implement"] --> AGT
+    AGT -.-> SKL1["tdd-modernize<br/>Skill"]
+    AGT -.-> SKL2["sfdc-to-python<br/>Skill"]
+    AGT --> OUT["app/ + tests/"]
+
+    style CMD1 fill:#4285F4,color:#fff
+    style CMD2 fill:#4285F4,color:#fff
+    style SKL1 fill:#FBBC04,color:#000
+    style SKL2 fill:#FBBC04,color:#000
+```
+
+### 3.1 テストシナリオ抽出
+
+```
+/extract-test-scenarios ./examples
+```
+
+**AI の挙動**:
+1. Apex テストクラスの全 `System.assertEquals` / `System.assert` を解析
+2. Skill `tdd-modernize` の変換ルールに従いシナリオ化
+
+**期待される出力例** (`03-code-modernization/output/TEST_SCENARIOS.md`):
+
+| # | カテゴリ | シナリオ | 期待結果 | Apex assert |
+|---|---------|---------|---------|------------|
+| 1 | GET 一覧 | 全件取得 | 3件返却 | `assertEquals(3, result.size())` |
+| 2 | GET 一覧 | Status フィルタ | Draft 1件 | `assertEquals(1, result.size())` |
+| 3 | GET 詳細 | 正常取得 | 子レコード2件含む | `assertEquals(2, result.VisitDetails__r.size())` |
+| 4 | GET 詳細 | 存在しないID | 404 | `assert(false, '例外がスローされるべき')` |
+| 5 | POST | 正常作成 | Draft で作成 | `assertEquals('Draft', result.Status__c)` |
+| 6 | POST | 必須項目欠落 | 400 | `assert(e.getMessage().contains('必須'))` |
+| 7 | POST | Rating 範囲外 | 400 | `assert(e.getMessage().contains('評価'))` |
+| 8 | PATCH 遷移 | Draft→Submitted | ✅ | `assertEquals('Submitted', result.Status__c)` |
+| 9 | PATCH 遷移 | Approved→Draft | ❌ | `assert(e.getMessage().contains('遷移'))` |
+| 10 | DELETE | Draft 削除可 | 204 + CASCADE | `assertEquals(0, remaining.size())` |
+| 11 | DELETE | Approved 削除不可 | 400 | `assert(e.getMessage().contains('削除'))` |
+
+### 3.2 テスト生成 → 実装（TDD）
+
+```
+/generate-and-implement
+```
+
+**AI の挙動**:
+1. **🔴 RED**: Skill `tdd-modernize` に従い pytest テストを生成
+   - `@TestSetup` → `@pytest.fixture`
+   - `System.assertEquals` → `assert actual == expected`
+   - `try/catch AuraHandled` → `pytest.raises(HTTPException)`
+   - `conftest.py` テンプレートを適用
+2. **🟢 GREEN**: Skill `sfdc-to-python` に従い実装コードを生成
+   - ガバナ制限回避コード → シンプルな SQLAlchemy クエリに書き直し
+   - `StoreVisitTriggerHandler` の副作用 → `usecase` 層で明示的に管理
+   - `StoreVisitMonthlyBatch` → Cloud Run Jobs 用スクリプトのテンプレート
+   - ステータス遷移テーブル → `VALID_TRANSITIONS` dict
+3. **🔵 REFACTOR**: ruff / mypy でコード品質を向上
+
+**期待されるプロジェクト構造**:
+
+```
+03-code-modernization/output/
+├── app/
+│   ├── __init__.py
+│   ├── main.py                  ← FastAPI アプリ
+│   ├── config.py                ← pydantic-settings
+│   ├── db.py                    ← SQLAlchemy エンジン
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── store.py             ← Store モデル
+│   │   ├── store_visit.py       ← StoreVisit モデル
+│   │   ├── visit_detail.py      ← VisitDetail モデル
+│   │   └── monthly_summary.py   ← MonthlyVisitSummary モデル
+│   ├── schemas/
+│   │   └── store_visit.py       ← Pydantic スキーマ
+│   ├── router/
+│   │   └── store_visit_router.py
+│   ├── usecase/
+│   │   └── store_visit_usecase.py  ← ビジネスロジック
+│   └── repository/
+│       ├── base.py              ← ABC
+│       └── store_visit_repository.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_models.py
+│   ├── test_usecase.py
+│   └── test_router.py
+├── Dockerfile
+├── pyproject.toml
+└── requirements.txt
+```
+
+### 3.3 テスト実行
+
+```bash
+cd 03-code-modernization/output
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# テスト実行
+pytest tests/ -v --tb=short
+
+# カバレッジ付き
+pytest tests/ --cov=app --cov-report=term-missing
+```
+
+### 3.4 コンテナ間 CRUD 検証
+
+```bash
+# アプリ + DB を起動
+cd ..  # workshop-real/ に戻る
+docker compose up -d --build
+
+# ヘルスチェック
+curl http://localhost:8080/
+
+# 店舗を作成（テスト用データ）
+docker compose exec db psql -U app_user -d migration_db -c "
+INSERT INTO stores (sfdc_id, store_code, store_name, region, address, is_active)
+VALUES ('a001000000TEST01', 'TEST-001', 'テスト渋谷店', '関東', '東京都渋谷区テスト1-2-3', true);
+"
+
+# POST: 訪問記録を作成
+curl -X POST http://localhost:8080/store-visits \
+  -H "Content-Type: application/json" \
+  -d '{
+    "store_id": "a001000000TEST01",
+    "visit_date": "2026-04-22",
+    "purpose": "定期巡回",
+    "summary": "テスト訪問です",
+    "rating": 4
+  }'
+
+# GET: 一覧取得
+curl http://localhost:8080/store-visits
+
+# PATCH: ステータス遷移（Draft → Submitted）
+curl -X PATCH http://localhost:8080/store-visits/{id} \
+  -H "Content-Type: application/json" \
+  -d '{"status": "Submitted"}'
+```
+
+### 3.5 Apex → Python 変換のハイライト
+
+> [!IMPORTANT]
+> Skill `sfdc-to-python` が以下の変換を制御しています。AI がこれらのパターンに従って正しく変換しているか確認してください。
+
+| Apex パターン | Python 変換 | 確認ポイント |
+|-------------|------------|-----------|
+| `with sharing class StoreVisitService` | Router 層で認証チェック（デフォルト） | Sharing モデルの変換 |
+| `Map<String, Set<String>> VALID_TRANSITIONS` | `dict[str, list[str]]` | ステータス遷移テーブル |
+| `Database.setSavepoint()` / `rollback()` | SQLAlchemy Session のトランザクション | 親子一括作成 |
+| `StoreVisitTriggerHandler.onAfterUpdate()` | `usecase.update_visit()` 内で明示呼び出し | 暗黙→明示の副作用管理 |
+| `Database.Batchable` | Cloud Run Jobs テンプレート | `BATCH_SIZE` 環境変数 |
+| SOQL の動的クエリ構築 | SQLAlchemy の `select().where()` チェーン | N+1 対策 |
+
+### 3.6 機械的検証
+
+```bash
+# Step 2 → Step 3 のデータ整合性 + テスト実行
+./scripts/verify-consistency.sh 2-3
+./scripts/verify-consistency.sh 3
+```
+
+### 3.7 品質チェック
+
+- [ ] テストが全件 PASS
+- [ ] カバレッジ 80% 以上
+- [ ] `curl` で CRUD 操作が成功
+- [ ] ステータス遷移が Apex テストと同じ挙動
+- [ ] 3層アーキテクチャ（router → usecase → repository）が守られている
+
+```bash
+# 独立コンテキストレビュー（推奨）
+/clear
+/review-gate 3
+/clear
+```
+
+---
+
+## Step 4: ⚛️ Next.js フロントエンド — 設計 (4-A) → 実装 (4-B)（55分）
+
+> **ゴール**: Step 3 の Backend API に対して、Next.js (App Router) + shadcn/ui で「ブラウザで動く」管理画面を構築する。
+> 設計フェーズを **明示的に切る** ことで Plan-First を強化し、実装事故を設計レビューで予防する。
+
+### Step 4-A: 設計フェーズ（15分）
+
+```
+/design-frontend
+```
+
+**AI の挙動**:
+1. Step 1 の `system_overview.md` + Step 3 の `app/router/` + `app/model/schemas.py` + `app/usecase/` を参照
+2. `04-frontend-nextjs/output/design/` 配下に **中粒度 markdown 設計書 11 ファイル** を生成
+   - `overview.md`（全体方針・画面遷移図）
+   - `design-system.md`（Tailwind トークン、shadcn/ui 一覧、ステータスバッジ色）
+   - `api-client.md`（BFF Route Handler ↔ Backend エンドポイント対応表）
+   - `data-model.md`（Zod スキーマ案、camelCase ↔ snake_case 境界）
+   - `screens/*.md`（P0 画面 7 枚: dashboard / list / detail / create / edit / status-transition / delete-confirm）
+
+```bash
+# 独立コンテキストレビュー（必須）
+/clear
+/review-gate 4-A
+/clear
+```
+
+### Step 4-B: 実装フェーズ（30分）
+
+設計レビューが PASS してから実行:
+
+```
+/implement-frontend
+```
+
+**AI の挙動**:
+1. `04-frontend-nextjs/output/design/` の markdown を **唯一の真実** として、Next.js プロジェクトを TDD で実装
+2. Phase 0: プロジェクト初期化 (pnpm + Next.js 15 + TS 5 + Tailwind + shadcn/ui add)
+3. Phase 1〜3: テストファースト（Vitest unit → 実装）で `lib/schemas.ts` (Zod) → BFF Route Handler → ドメインコンポーネント
+4. Phase 4: ページ実装（App Router、P0 画面 7 枚）
+5. Phase 5: Playwright E2E（list / create / status-transition / delete の 4 シナリオ）
+6. Phase 6: Dockerfile (multi-stage) + `docker compose --profile nextjs up -d --build`
+
+**動作確認**:
+```bash
+docker compose --profile nextjs up -d --build
+curl -fsS http://localhost:8080/healthz                 # Backend
+curl -fsS http://localhost:3000/api/visits              # BFF Route Handler
+open http://localhost:3000                              # ブラウザで管理画面
+```
+
+```bash
+# 独立コンテキストレビュー（必須）
+/clear
+/review-gate 4-B
+/clear
+```
+
+---
+
+## Step 5: 📊 品質評価（30分）
+
+> **ゴール**: AI が生成した成果物の品質を定量評価し、改善ポイントを特定する
+
+### 使用する Agent・Skill
+
+- Agent `migration-reviewer` + Skill `quality-rubric`（1-5 のスコアリング評価）
+
+### 4.1 全 Step 整合性チェック（機械的検証）
+
+```bash
+# 全 Step 間の成果物整合性を一括チェック
+./scripts/verify-consistency.sh
+
+# 進捗チェック（成果物の存在 + DB 状態）
+./scripts/check-progress.sh
+```
+
+| チェック | 内容 | 検証スクリプト |
+|---------|------|-------------|
+| Step 1 → Step 2 | ER 図のオブジェクト ⊆ DDL のテーブル | `verify-consistency.sh 1-2` |
+| Step 2 → Step 3 | DDL のテーブル ⊆ SQLAlchemy モデル | `verify-consistency.sh 2-3` |
+| Step 3 テスト | pytest 全件 PASS + ruff/mypy パス | `verify-consistency.sh 3` |
+
+### 4.2 独立コンテキストレビュー（全 Step 一括）
+
+```bash
+# コンテキストリセット → 全 Step レビュー
+/clear
+/review-gate all
+```
+
+Skill `quality-rubric` に基づき、各 Step を **5 軸 × 5 段階** でスコアリングします。
+合格基準: 全軸 3/5 以上、平均 3.5/5 以上、CRITICAL 発見事項 0 件。
+
+### 4.3 静的解析
+
+```bash
+cd 03-code-modernization/output
+ruff check app/ tests/
+mypy app/
+bandit -r app/
+```
+
+### 4.4 テストカバレッジ確認
+
+```bash
+pytest tests/ --cov=app --cov-report=html
+open htmlcov/index.html  # ブラウザで確認
+```
+
+---
+
+## Step 6: 🗺️ 移行ロードマップ策定（45分）
+
+> **ゴール**: 技術選定の意思決定記録（ADR）と移行計画を作成する
+
+### 使用するコマンド
+
+```
+/generate-adr
+```
+
+**AI の挙動**:
+1. Agent `migration-reviewer` が全 Step の成果物 + `workshop-state.json` を横断参照
+2. 以下の ADR を生成（→ `06-roadmap/output/adr.md`）:
+   - ADR-001: Backend 言語選定（Python / FastAPI）
+   - ADR-002: DB エンジン選定（Cloud SQL PostgreSQL）
+   - ADR-003: コンテナ基盤選定（Cloud Run）
+   - ADR-004: AI 駆動開発の品質保証方針
+   - ADR-005: データ移行方式
+3. SFDC → Google Cloud サービスマッピング図を生成
+4. **本日の実績ベース** の移行ロードマップを生成（→ `06-roadmap/output/roadmap.md`）:
+   - Mermaid `gantt` で Phase 0 〜 Phase 3 の期間を可視化
+   - 本日の Apex 行数 / 所要時間 / スコアから全量移行の見立てを定量化
+5. アクションアイテム一覧を生成（→ `06-roadmap/output/action_items.md`）:
+   - 担当ロール / 期限目安 / 優先度 / 依存関係 / ステータス付き
+   - Phase 0 完了報告会 / Phase 1 キックオフのマイルストーン枠
+
+---
+
+## 🚀 全自動実行（オプション）
+
+> [!TIP]
+> 各 Step を個別に実行する代わりに、全体をチェーン実行することもできます。
+> **品質優先モード**と**速度優先モード**を選択できます。
+
+### 速度優先モード（デフォルト）
+
+```
+/run-workshop ./examples
+```
+
+Step 1 → 2 → 3 → 4-A → 4-B → 6 が順序通りに実行され、各 Step 完了後にセルフレビュー + `verify-consistency.sh` を実行します。
+
+### 品質優先モード（推奨）
+
+各 Step を個別に実行し、`/clear` → `/review-gate` で独立コンテキストレビューを挟みます。
+
+```bash
+/reverse-engineer ./examples   # Step 1
+/clear
+/review-gate 1                 # 独立レビュー
+/clear
+/schema-convert ./examples     # Step 2
+/clear
+/review-gate 2
+/clear
+/generate-and-implement        # Step 3
+/clear
+/review-gate 3
+/clear
+/design-frontend               # Step 4-A: 設計
+/clear
+/review-gate 4-A
+/clear
+/implement-frontend            # Step 4-B: 実装
+/clear
+/review-gate 4-B
+/clear
+/generate-adr                  # Step 6
+```
+
+```mermaid
+flowchart TD
+    S1["Step 1: builder 実行"] --> CL1["/clear"]
+    CL1 --> G1{"/review-gate 1\nスコアリング"}
+    G1 -->|"✅ 3.5+"| CL2["/clear"]
+    G1 -->|"❌ FAIL"| FIX1["修正 → /clear → 再レビュー"]
+    FIX1 --> G1
+    CL2 --> S2["Step 2: builder 実行"]
+    S2 --> CL3["/clear"]
+    CL3 --> G2{"/review-gate 2"}
+    G2 -->|"✅"| CL4["/clear"]
+    CL4 --> S3["Step 3: builder 実行"]
+    S3 --> CL5["/clear"]
+    CL5 --> G3{"/review-gate 3"}
+    G3 -->|"✅"| S4A["Step 4-A: 設計\n/design-frontend"]
+    S4A --> CL6["/clear"]
+    CL6 --> G4A{"/review-gate 4-A\n設計レビュー"}
+    G4A -->|"✅"| S4B["Step 4-B: 実装\n/implement-frontend"]
+    S4B --> CL7["/clear"]
+    CL7 --> G4B{"/review-gate 4-B\n実装レビュー"}
+    G4B -->|"✅"| S6["Step 6: ADR 生成"]
+    S6 --> DONE["✅ 完了"]
+
+    style S1 fill:#4285F4,color:#fff
+    style S2 fill:#4285F4,color:#fff
+    style S3 fill:#4285F4,color:#fff
+    style S4A fill:#EA4335,color:#fff
+    style S4B fill:#EA4335,color:#fff
+    style DONE fill:#34A853,color:#fff
+    style G1 fill:#FBBC04,color:#000
+    style G2 fill:#FBBC04,color:#000
+    style G3 fill:#FBBC04,color:#000
+    style G4A fill:#FBBC04,color:#000
+    style G4B fill:#FBBC04,color:#000
+```
+
+---
+
+## 📦 クリーンアップ
+
+```bash
+# コンテナ停止 + ボリューム削除
+docker compose down -v
+
+# Python 仮想環境の削除
+rm -rf 03-code-modernization/output/.venv
+```
+
+---
+
+## 🎒 ハンズオン成果物一覧
+
+| 成果物 | パス | Step |
+|-------|------|------|
+| ソース Tree マップ | `01-reverse-engineering/output/source_tree.md` | 1 |
+| ナレッジカタログ | `01-reverse-engineering/output/knowledge_catalog.md` | 1 |
+| **Code Wiki** | `01-reverse-engineering/output/wiki/` | 1 |
+| システム概要書 | `01-reverse-engineering/output/system_overview.md` | 1 |
+| 移行影響分析 | `01-reverse-engineering/output/migration_assessment.md` | 1 |
+| PostgreSQL DDL | `02-schema-migration/output/generated_ddl.sql` | 2 |
+| データ検証 SQL | `02-schema-migration/output/data_validation.sql` | 2 |
+| データ投入スクリプト | `02-schema-migration/output/import_data.py` | 2 |
+| テストシナリオ | `03-code-modernization/output/TEST_SCENARIOS.md` | 3 |
+| Python プロジェクト | `03-code-modernization/output/app/` | 3 |
+| pytest テスト | `03-code-modernization/output/tests/` | 3 |
+| Dockerfile (Backend) | `03-code-modernization/output/Dockerfile` | 3 |
+| Frontend 設計書 | `04-frontend-nextjs/output/design/` | 4-A |
+| Next.js プロジェクト | `04-frontend-nextjs/output/{app,components,lib,tests}/` | 4-B |
+| Dockerfile (Frontend) | `04-frontend-nextjs/output/Dockerfile` | 4-B |
+| ADR | `06-roadmap/output/adr.md` | 6 |
+| 移行ロードマップ | `06-roadmap/output/roadmap.md` | 6 |
+| アクションアイテム一覧 | `06-roadmap/output/action_items.md` | 6 |
+| 品質レビューレポート | `XX-xxx/output/review_report.md` | 各 Step |
+
+---
+
+## 💡 Tips: AI ハーネスの仕組み
+
+このハンズオンでは、AI の挙動を 3 つのレイヤー + 品質インフラで制御しています：
+
+| レイヤー | ファイル | 役割 |
+|---------|---------|------|
+| **Commands** | `.claude/commands/*.md` | 参加者が `/xxx` で呼び出すエントリーポイント |
+| **Agents** | `.claude/agents/*.md` | Step 特化の専門エージェント（分析手順・品質基準を定義） |
+| **Skills** | `.claude/skills/*/SKILL.md` | 再利用可能なドメインナレッジ（変換ルール・パターン集） |
+| **品質ゲート** | `/review-gate` + `quality-rubric` | 独立コンテキストでの 5 段階スコアリングレビュー |
+| **状態管理** | `workshop-state.json` | 進捗・メトリクス・レビュースコアのマシンリーダブル管理 |
+| **機械的検証** | `scripts/verify-consistency.sh` | Step 間データ整合性の自動チェック |
+
+> [!NOTE]
+> **独立コンテキストレビュー**は Anthropic が Google Cloud Next 2026 で発表した「長時間エージェントのハーネス設計パターン」に基づいています。
+> `/clear` でコンテキストをリセットし、builder の盲点を引き継がないまっさらな視点でレビューすることで、self-leniency（自己評価の甘さ）を構造的に排除します。
+
+詳細は [README.md](../README.md) の「🏗️ AI ハーネスアーキテクチャ」および「🤖 品質保証: 独立コンテキストレビュー」セクションを参照してください。
